@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DD全能工作间 · 多屏监控室</title>
+<link rel="stylesheet" href="/static/style.css?v=20261120b">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23fb7299'/><path d='M10 12h12M10 20h12' stroke='white' stroke-width='3' stroke-linecap='round'/></svg>">
+</head>
+<body>
+<div id="app">
+
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div class="brand">
+      <i class="mark"></i>
+      <b>DD<i>全能工作间</i></b>
+      <span>· 多屏监控室</span>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><span>舞台</span><b id="m-rooms">0 / 16</b></div>
+      <div class="metric live"><span>在播</span><b id="m-live">0</b></div>
+      <div class="metric"><span>弹幕/分</span><b id="m-rate" class="hot">0</b></div>
+      <div class="metric"><span>已接收</span><b id="m-total">0</b></div>
+      <div class="metric net" id="net-wrap">
+        <span>下行</span><b id="m-net">0 KB/s</b>
+        <div class="net-pop" id="net-pop"><div class="np-empty">暂无下行流量</div></div>
+      </div>
+      <div class="metric mem" id="mem-wrap" title="页面 JS 内存（真正的大头是每路视频解码，在浏览器进程里）· 点一下重建全部播放器来释放，画面会重新连接">
+        <span>页面内存</span><b id="m-mem">–</b>
+      </div>
+      <span class="hsep"></span>
+      <div class="metric" style="gap:7px">
+        <span class="dot off" id="bridge-pill"></span>
+        <span id="board-status" style="color:#8896a9">引擎未启动</span>
+      </div>
+    </div>
+
+    <div class="tools">
+      <button class="chip" id="login-chip">
+        <span class="dot"></span><span>登录 B 站账号</span><span class="k">未登录</span>
+      </button>
+      <span class="setwrap">
+        <button class="icon-btn" id="settings-btn" type="button" title="设置" aria-label="设置"
+                aria-haspopup="menu" aria-expanded="false" aria-controls="settings-menu">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+        <div class="set-pop hide" id="settings-menu" role="menu" aria-label="设置">
+          <a class="set-item" role="menuitem" data-set="console" href="http://127.0.0.1:8765/" target="_blank" rel="noopener">
+            <span class="si-t">监控台</span><span class="si-k">127.0.0.1:8765 ↗</span>
+          </a>
+          <button class="set-item" type="button" role="menuitem" data-set="help">
+            <span class="si-t">使用说明</span><span class="si-k">操作指引</span>
+          </button>
+          <button class="set-item" type="button" role="menuitem" data-set="proxy"
+                  title="网络代理：给本程序的 HTTP(S) 请求（B 站接口、更新检查）套一个本机代理">
+            <span class="si-t">网络代理</span><span class="si-k" id="proxy-tag">读取中</span>
+          </button>
+          <div class="set-sep"></div>
+          <button class="set-item" type="button" role="menuitem" data-set="check"
+                  title="检查 Gitee 上有没有新版本（只读 VERSION，不下载、不自动升级）">
+            <span class="si-t">更新检查</span><span class="si-k">与 Gitee 比对</span>
+          </button>
+          <button class="set-item" type="button" role="menuitem" data-set="about"
+                  title="DD全能工作间 · 版本与开发者信息">
+            <span class="si-t">关于</span><span class="si-k">版本信息</span>
+          </button>
+        </div>
+      </span>
+    </div>
+  </header>
+
+  <!-- 左栏：房间 -->
+  <aside class="rail">
+    <div class="rail-head">
+      <div class="rail-title">
+        <h2>直播间</h2>
+        <span class="rail-pills"><span class="count-pill" id="rail-count">0/16</span><span class="count-pill listen hide" id="rail-listen" title="只收弹幕、不上舞台">听 0</span></span>
+      </div>
+      <div class="search">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/></svg>
+        <input id="rail-search" type="search" placeholder="搜索主播 / 房间号 / 分组" autocomplete="off">
+      </div>
+    </div>
+    <div class="rail-body" id="rail-body"></div>
+    <form class="add-row" id="add-form">
+      <input id="add-room" placeholder="房间号 / 主播UID" title="填房间号、主播 UID 或直播间链接都行（直播间的链接、主播空间链接都可以）；回车加入舞台，点「只听」只收弹幕" autocomplete="off">
+      <button type="submit">加入</button>
+      <button type="button" id="add-listen" title="只收弹幕，不上舞台">只听</button>
+    </form>
+    <div class="rail-sub">
+      <span id="rail-sub-text">名单来自本地监控台 data/bot.db</span>
+      <button class="link hide" id="rail-unhide" title="把本工具里隐藏的房间放回列表">恢复隐藏</button>
+      <button class="link" id="rail-refresh">刷新名单</button>
+    </div>
+  </aside>
+
+  <!-- 舞台 -->
+  <section class="stage">
+    <div class="stage-head">
+      <div class="cell">
+        <span class="dot on"></span>
+        <span id="stage-meta">未选择直播间</span>
+      </div>
+      <button class="link hide" id="solo-exit" style="font-size:11px">返回多屏 <span style="color:var(--dim-2)">Esc</span></button>
+      <button class="link" id="mode-btn" title="低延迟 ≈ 落后 2.5 秒；流畅优先 ≈ 落后 4 秒、不裁剪缓冲，适合高码率房间偶发卡顿时切换">低延迟</button>
+      <button class="link" id="bg-btn" title="后台暂停：窗口最小化 / 切到别的标签页 5 秒后暂停全部画面（省内存，弹幕照收），回来自动恢复 · 点击改成后台续播">后台暂停</button>
+      <span class="qwrap">
+      <button class="qbtn" id="q-btn" title="播放模式 / 后台播放的说明" aria-label="说明">?</button>
+      <div class="q-pop hide" id="q-pop">
+        <div class="qp-head"><b>这两个开关是什么</b><button class="cp-x" id="q-close" title="关闭">×</button></div>
+        <div class="qp-sec">
+          <div class="qp-t"><b>播放模式</b><span>舞台头的「流畅优先 / 低延迟」</span></div>
+          <ul>
+            <li><b>流畅优先（默认）</b>：缓冲约 4 秒，不裁剪已缓冲的数据。高码率、60fps 的房间更稳，代价是画面落后直播约 4 秒；每 20 分钟自动软重连一次回收内存。</li>
+            <li><b>低延迟</b>：缓冲约 2.5 秒，更贴近直播。网络抖动或高码率房间偶发卡顿时，切回流畅优先。</li>
+          </ul>
+        </div>
+        <div class="qp-sec">
+          <div class="qp-t"><b>后台播放</b><span>窗口最小化 / 切到别的标签页时怎么办</span></div>
+          <ul>
+            <li><b>后台暂停（默认）</b>：切走 5 秒后暂停全部画面以省内存，弹幕照收；切回来每隔 0.1 秒逐个自动恢复。</li>
+            <li><b>后台续播</b>：最小化也继续拉流解码，适合挂机盯盘或听声音；内存和 CPU 占用会明显更高。</li>
+          </ul>
+        </div>
+        <div class="qp-foot">两个选择都只影响这台电脑的这个浏览器（存在 localStorage）。</div>
+      </div>
+      </span>
+      <div class="presets">
+        <button data-preset="auto" class="on">AUTO</button>
+        <button data-preset="2x2">4</button>
+        <button data-preset="3x2">6</button>
+        <button data-preset="3x3">9</button>
+        <button data-preset="4x4">16</button>
+      </div>
+    </div>
+    <div id="grid"></div>
+    <div class="stage-empty" id="stage-empty">
+      <div class="card">
+        <div style="font:600 12px/1 var(--mono);letter-spacing:.3em;color:#5d6b7d;margin-bottom:14px">STANDBY</div>
+        <h3>舞台是空的</h3>
+        <p>从左侧名单勾选直播间，或在底部填房间号 / 主播 UID / 直播间链接<br>一次最多同时接入 16 路画面</p>
+        <p style="margin-top:16px"><span class="kbd">双击</span> 单路画面可全屏查看，<span class="kbd">Esc</span> 返回多屏</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 右侧：弹幕 -->
+  <aside class="chat">
+    <div class="chat-head">
+      <div class="chat-title">
+        <h2>弹幕流</h2>
+        <span class="now" id="chat-count">0 条</span>
+      </div>
+      <div class="chat-filter">
+        <select id="chat-room" title="弹幕来源">
+          <option value="0">合并 · 全部</option>
+        </select>
+        <button class="mini" id="combo-open" title="临时组合：把几个直播间并成一条弹幕流，可随时切换">组合</button>
+      </div>
+      <div class="combo-panel hide" id="combo-panel">
+        <div class="cp-head">
+          <b>临时组合</b>
+          <span>勾选舞台或只听弹幕里的房间并成一条弹幕流，之后在下拉里一键切换（只影响弹幕，不改变舞台画面）</span>
+          <button class="cp-x" id="combo-close" title="关闭">×</button>
+        </div>
+        <div class="cp-list" id="combo-list"></div>
+        <div class="cp-form">
+          <input id="combo-name" maxlength="24" placeholder="组合名（留空自动编号）">
+          <div class="cp-rooms" id="combo-rooms"></div>
+          <div class="cp-actions">
+            <button class="btn sm" id="combo-save">保存组合</button>
+            <button class="btn sm ghost" id="combo-cancel">取消</button>
+          </div>
+        </div>
+      </div>
+      <div class="chat-filter">
+        <div class="seg">
+          <button data-kind="all" class="on">全部</button>
+          <button data-kind="danmaku">弹幕</button>
+          <button data-kind="gift">礼物</button>
+          <button data-kind="sc">SC</button>
+        </div>
+        <button class="mini" id="chat-clear" title="清空当前面板（不影响服务端缓冲）">清屏</button>
+      </div>
+    </div>
+    <div id="feed">
+      <div class="chat-empty" id="feed-empty">等待弹幕…<br>连上直播间后，这里的消息会实时滚动</div>
+    </div>
+    <div class="chat-foot">
+      <span id="chat-mode-label">全部直播间</span>
+      <div class="bar"><i id="rate-bar"></i></div>
+      <span id="chat-tip">连接中…</span>
+    </div>
+  </aside>
+
+  <!-- 发送 -->
+  <footer class="composer">
+    <div class="to">
+      <label for="send-to">发到</label>
+      <select id="send-to"><option value="0">未选择直播间</option></select>
+    </div>
+    <div class="box">
+      <button class="emo-trigger" id="send-emo" type="button" title="发表情包">☺</button>
+      <input id="send-text" maxlength="120" placeholder="输入弹幕内容，Ctrl + Enter 发送…" autocomplete="off">
+      <span class="len" id="send-len">0/100</span>
+    </div>
+    <button class="btn primary" id="send-btn">发送弹幕</button>
+    <div class="emo-panel hide" id="emo-panel"></div>
+  </footer>
+</div>
+
+<!-- 登录弹窗 -->
+<div class="mask hide" id="login-mask">
+  <div class="modal">
+    <h3>登录 B 站账号</h3>
+    <p class="hint">扫码登录用于发送弹幕（需要 SESSDATA + bili_jct）。只保存在本地 <code style="color:#8896a9">config/livedeck.env</code>，不会上传。</p>
+
+    <div class="tabheads" id="login-tabs">
+      <button data-tab="qr" class="on">扫码登录</button>
+      <button data-tab="paste">手动粘贴 Cookie</button>
+    </div>
+
+    <div id="login-qr">
+      <div class="qr-wrap">
+        <div class="qr-box" id="qr-box"><div class="ph">正在申请二维码…</div></div>
+        <div class="qr-side">
+          <ol class="steps">
+            <li><span class="n">1</span><span>用手机 B 站 App 扫描左侧二维码</span></li>
+            <li><span class="n">2</span><span>在手机上确认登录（可能要走安全验证）</span></li>
+            <li><span class="n">3</span><span>本工具拿到 SESSDATA 与 bili_jct，即可发送弹幕</span></li>
+          </ol>
+          <div class="status-line" id="qr-status"><span class="dot"></span>准备中…</div>
+          <div class="modal-foot" style="justify-content:flex-start">
+            <button class="btn sm" id="qr-refresh">换一张</button>
+            <button class="btn sm" id="login-close">关闭</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="login-paste" class="hide">
+      <div class="note"><b>怎么拿？</b>浏览器登录 bilibili.com 后打开开发者工具 → Application → Cookies，复制 <b>SESSDATA</b>、<b>bili_jct</b>、<b>DedeUserID</b> 三项。发弹幕必须三项齐全。</div>
+      <div style="height:12px"></div>
+      <div class="field"><label>SESSDATA</label><textarea id="p-sess" rows="2" placeholder="从 bili.env / 浏览器 Cookie 复制"></textarea></div>
+      <div class="field"><label>bili_jct（csrf）</label><input id="p-jct" placeholder="发弹幕必需"></div>
+      <div class="field"><label>DedeUserID（mid）</label><input id="p-dede" placeholder="发弹幕必需"></div>
+      <div class="modal-foot">
+        <button class="btn sm" id="logout-btn" style="margin-right:auto;color:#ff8a9b">退出登录 / 清除凭据</button>
+        <button class="btn sm" id="login-close2">取消</button>
+        <button class="btn sm primary" id="paste-save">保存并校验</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 分组弹窗 -->
+<div class="mask hide" id="grp-mask">
+  <div class="modal">
+    <h3>设置分组</h3>
+    <p class="hint" id="grp-room">—</p>
+    <div class="field">
+      <label>分组名（写入监控台 data/bot.db 的 subject.grp）</label>
+      <input id="grp-input" list="grp-list" maxlength="40" placeholder="例如 PSPLive / 个人势 / 英雄联盟" autocomplete="off">
+      <datalist id="grp-list"></datalist>
+    </div>
+    <div class="modal-foot">
+      <button class="btn sm" id="grp-cancel">取消</button>
+      <button class="btn sm primary" id="grp-save">保存分组</button>
+    </div>
+  </div>
+</div>
+
+<!-- 移除弹窗 -->
+<div class="mask hide" id="del-mask">
+  <div class="modal">
+    <h3>移除直播间</h3>
+    <p class="hint" id="del-room">—</p>
+    <div class="del-opt">
+      <button class="btn sm" id="del-hide"><b>仅在本工具隐藏</b><span>监控台名单不变，可点底部「恢复隐藏」找回</span></button>
+      <button class="btn sm" id="del-disable"><b>从监控台停用</b><span>写 data/bot.db 的 enabled=0，之后可再启用</span></button>
+      <button class="btn sm danger" id="del-delete"><b>从监控台名单删除</b><span>删除 subject / subject_state 行，历史事件保留</span></button>
+      <button class="btn sm danger" id="del-temp"><b>从列表删除</b><span>只删掉这个临时房间（同时下屏），不涉及监控台名单</span></button>
+    </div>
+    <div class="modal-foot"><button class="btn sm" id="del-cancel">取消</button></div>
+  </div>
+</div>
+
+<!-- 印象色弹窗 -->
+<div class="mask hide" id="col-mask">
+  <div class="modal">
+    <h3>设置印象色</h3>
+    <p class="hint" id="col-room">—</p>
+    <div class="field">
+      <label class="col-check"><input type="checkbox" id="col-on" checked> 开启印象色（弹幕流的房间标签按主色 / 辅色取色；左栏名单不显示）</label>
+    </div>
+    <div class="field">
+      <label>主色（开启时必填）· 色盘自带取色吸管，也可直接填十六进制或 RGB</label>
+      <div class="col-row">
+        <input type="color" id="col-main-pick" value="#fb7299" aria-label="主色色盘">
+        <button class="btn sm" id="col-main-drop" type="button" title="用屏幕吸管取色">吸色</button>
+        <input class="col-hex" id="col-main-hex" maxlength="7" placeholder="#fb7299" autocomplete="off" spellcheck="false" aria-label="主色十六进制">
+        <span class="col-rgb">
+          <input id="col-main-r" type="number" min="0" max="255" placeholder="R" aria-label="主色红">
+          <input id="col-main-g" type="number" min="0" max="255" placeholder="G" aria-label="主色绿">
+          <input id="col-main-b" type="number" min="0" max="255" placeholder="B" aria-label="主色蓝">
+        </span>
+      </div>
+    </div>
+    <div class="field">
+      <label>辅色（选填）· 与主色组成双色标签；两色太近或无法兼容时仍按主色显示</label>
+      <div class="col-row">
+        <input type="color" id="col-sec-pick" value="#2ee6d6" aria-label="辅色色盘">
+        <button class="btn sm" id="col-sec-drop" type="button" title="用屏幕吸管取色">吸色</button>
+        <input class="col-hex" id="col-sec-hex" maxlength="7" placeholder="留空 = 单色" autocomplete="off" spellcheck="false" aria-label="辅色十六进制">
+        <button class="btn sm" id="col-sec-clear" type="button" title="清空辅色">清空</button>
+        <span class="col-rgb">
+          <input id="col-sec-r" type="number" min="0" max="255" placeholder="R" aria-label="辅色红">
+          <input id="col-sec-g" type="number" min="0" max="255" placeholder="G" aria-label="辅色绿">
+          <input id="col-sec-b" type="number" min="0" max="255" placeholder="B" aria-label="辅色蓝">
+        </span>
+      </div>
+    </div>
+    <div class="field">
+      <label>预览（弹幕流里的主播标签）</label>
+      <div class="col-prev"><span class="tag" id="col-prev-tag">主播名</span></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn sm" id="col-close">取消</button>
+      <button class="btn sm danger hide" id="col-clear">清除印象色</button>
+      <button class="btn sm primary" id="col-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 说明弹窗 -->
+<div class="mask hide" id="help-mask">
+  <div class="modal wide">
+    <h3>使用说明</h3>
+    <p class="hint">本地运行的多屏监控室：画面由本地服务端把 B 站直播流（HTTP-FLV）转成 WebSocket 喂给播放器，弹幕由本地「浏览器桥」统一转发，所以可以合并、筛选、归档展示。</p>
+    <div class="note" style="margin-bottom:12px">
+      <b>首次使用：</b>左侧点房间行的「＋」加入舞台 → 画面会自动连上；默认静音，鼠标移到格子上调音量。多路同时播放会占用较多内存（每格一路视频解码），16 路大约 1.5~2 GB，建议 4~9 路。
+    </div>
+    <ol class="steps" style="gap:8px">
+      <li><span class="n">1</span><span><b>登录：</b>右上角登录，扫码即可；发弹幕需要 bili_jct，扫码若没带上可改用手动粘贴。</span></li>
+      <li><span class="n">2</span><span><b>选台：</b>名单与现有 B 站监控台的 data/bot.db 同步，按监控台分组折叠展示；底部可直接填房间号、主播 UID 或直播间链接临时加入（不在名单也能看；纯数字会自动判断是房间号还是主播 UID）。点同一行的「听」或底部「只听」，只收该房间弹幕、不上舞台也不拉视频流。</span></li>
+      <li><span class="n">3</span><span><b>管理：</b>每行悬浮出「＋/－ 舞台、设置分组、移除」；分组会写回监控台的 subject.grp，只有名单里的房间可改。</span></li>
+      <li><span class="n">4</span><span><b>布局：</b>AUTO 自动铺排，或强制 4 / 6 / 9 / 16 宫格；双击画面单路查看，Esc 返回。</span></li>
+      <li><span class="n">5</span><span><b>弹幕：</b>默认合并全部直播间；右上角下拉选单个房间，或点击画面标题栏的名称只看那一路。礼物 / SC 会以不同样式标记。</span></li>
+      <li><span class="n">6</span><span><b>画面：</b>鼠标移到某一格，底部出现该路画质与音量；画质按 B 站档位重取流（原画需要登录态），音量逐格独立。</span></li>
+      <li><span class="n">11</span><span><b>重点观察：</b>任意格子上悬停后点标题栏右侧的 <b>▣</b>，可以依次把这一路放大到 <b>2×2 → 3×3 → 还原</b>，用一个大画面重点盯某一路；其它路会按顺序补进剩下的格子，放不下的显示「还有 N 路未上屏」。排布至少选「4」（2×2）或「9」（3×3）才有放大空间，拖标题栏换位、双击单路视图照常可用。放大只在当前页面记着，房间重新上舞台或刷新页面都会回到 1×1。</span></li>
+      <li><span class="n">10</span><span><b>播放模式：</b>舞台右上角可切「流畅优先 / 低延迟」。默认流畅优先（缓冲约 4 秒、不裁剪已缓冲的数据，高码率 60fps 房间更稳，每 20 分钟自动软重连回收内存）；低延迟缓冲约 2.5 秒，网络很好、追求更贴近直播时用。</span></li>
+      <li><span class="n">12</span><span><b>后台：</b>舞台头上的「后台暂停」控制窗口最小化 / 切到别的标签页时要不要继续播。默认暂停（省内存，弹幕照收，切回来每 0.1 秒逐个自动恢复）；要挂机盯盘就切「后台续播」，那会一直解码，内存和 CPU 占用更高。</span></li>
+      <li><span class="n">7</span><span><b>发送：</b>底部选择目标房间，Ctrl+Enter 发送；单房间 3 秒限一条，B 站自己的风控仍然生效。</span></li>
+      <li><span class="n">8</span><span><b>速度：</b>顶栏「下行」是全部直播流的总速度，鼠标悬停可看每一路的速度。</span></li>
+      <li><span class="n">9</span><span><b>内存：</b>顶栏「内存」是浏览器当前占用，超过 1.2 GB 变橙；点一下会重建全部播放器立即释放（画面重连一次），长时间挂机建议定期点一下。</span></li>
+    </ol>
+    <div class="note">
+      <b>画面黑屏 / 弹验证码？</b>B 站的嵌入页偶尔会要求人机验证，或拦掉静音自动播放。点格子右侧的 <b>↻</b> 重载一次，或点 <b>↗</b> 在浏览器里正常打开这一路；弹幕通道不受画面影响，仍然在收。
+    </div>
+    <div class="note" style="margin-top:8px">
+      <b>只听弹幕：</b>不必把直播间放进舞台。左栏非舞台房间点 <b>听</b>（或底部填房间号后点「只听」），它会保持弹幕连接并出现在弹幕流下拉的「只听弹幕」分组里；不占舞台格子、不拉视频流。最多 16 路，再点一次「听」停止。
+    </div>
+    <div class="note" style="margin-top:8px">
+      <b>弹幕桥：</b>顶栏右侧的「引擎」显示已连通的路数。它借用本机 Edge 的浏览器环境（B 站会按 TLS 指纹拦纯 Python 客户端），因此本工具需要在有 Edge 的 Windows 上、用你自己的终端启动；断开时会自动退避重连。
+    </div>
+    <div class="modal-foot">
+      <button class="btn sm" id="help-close">知道了</button>
+    </div>
+  </div>
+</div>
+
+<!-- 关于弹窗 -->
+<div class="mask hide" id="about-mask">
+  <div class="modal about-modal" role="dialog" aria-modal="true" aria-labelledby="about-title">
+    <div class="about-head">
+      <div class="about-id">
+        <h3 id="about-title">DD全能工作间</h3>
+        <div class="about-ver"><span>版本</span><b id="about-ver">—</b><span class="sep">·</span><span>MIT 许可</span></div>
+      </div>
+      <button class="about-x" id="about-close" type="button" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+    <p class="about-lead">在本机常驻，盯着你关注的 B 站主播：开播、下播、发动态，画成卡片图，通过你自己的 QQ 机器人推给你。附监控台与监控室两个界面。</p>
+    <ul class="about-points">
+      <li><b>数据只在本机</b>库在 <code>data/</code>，日志在 <code>logs/</code>，导出物在 <code>out/</code>；凭据只写 <code>config/*.env</code>，不入库、不上传。</li>
+      <li><b>只监听环回</b>两个服务都只绑定 <code>127.0.0.1</code>，不对局域网或公网开放。</li>
+      <li><b>非官方工具</b>与哔哩哔哩、腾讯无任何关联；不做风控绕过，不用于商业分发。</li>
+    </ul>
+    <dl class="about-kv">
+      <dt>开发者</dt><dd>VictorKiseki · VictorKiseki@gmail.com</dd>
+      <dt>源码</dt><dd><a href="https://github.com/VictorKiseki/bili-monitor" target="_blank" rel="noopener">github.com/VictorKiseki/bili-monitor</a></dd>
+      <dt>反馈</dt><dd><a href="https://github.com/VictorKiseki/bili-monitor/issues" target="_blank" rel="noopener">GitHub Issues（提问题 / 提需求）</a></dd>
+    </dl>
+    <div class="about-foot">
+      <span>Python 3.10–3.12（64 位）· Windows 10 1809 及以上</span>
+      <span>mpegts.js 1.8.0（MIT）· © 2026 VictorKiseki</span>
+    </div>
+  </div>
+</div>
+
+<!-- 更新检查弹窗 -->
+<div class="mask hide" id="upd-mask">
+  <div class="modal upd-modal" role="dialog" aria-modal="true" aria-labelledby="upd-title">
+    <div class="upd-head">
+      <h3 id="upd-title">更新检查</h3>
+      <button class="about-x" id="upd-close" type="button" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+    <p class="upd-status" id="upd-status">正在检查…</p>
+    <dl class="upd-kv">
+      <dt>当前版本</dt><dd id="upd-cur">—</dd>
+      <dt>最新版本</dt><dd id="upd-latest">—</dd>
+    </dl>
+    <p class="upd-hint">只读 Gitee 仓库上的 <code>VERSION</code> 做比对，不下载、不自动升级；仓库打不开时按「检查失败」处理。</p>
+    <div class="upd-foot">
+      <a class="btn sm" id="upd-link" href="https://github.com/VictorKiseki/bili-monitor" target="_blank" rel="noopener">打开 GitHub 仓库</a>
+      <button class="btn sm" id="upd-ok" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 网络代理弹窗（2026-11-12）：配置存 config/proxy.json，只作用于本程序的 HTTP(S) 请求 -->
+<div class="mask hide" id="proxy-mask">
+  <div class="modal proxy-modal" role="dialog" aria-modal="true" aria-labelledby="proxy-title">
+    <div class="proxy-head">
+      <h3 id="proxy-title">网络代理</h3>
+      <button class="about-x" id="proxy-close" type="button" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+    <div class="proxy-modes">
+      <label class="proxy-mode"><input type="radio" name="proxy-mode" id="proxy-mode-none" value="none"><span>不使用代理</span></label>
+      <label class="proxy-mode"><input type="radio" name="proxy-mode" id="proxy-mode-system" value="system" checked><span>使用系统代理</span></label>
+      <label class="proxy-mode"><input type="radio" name="proxy-mode" id="proxy-mode-custom" value="custom"><span>自定义代理</span></label>
+    </div>
+    <div class="field"><label for="proxy-url">代理地址</label><input type="text" id="proxy-url" placeholder="http://127.0.0.1:7890" spellcheck="false" autocomplete="off"></div>
+    <p class="proxy-status" id="proxy-status">读配置中…</p>
+    <p class="proxy-hint">只作用于本程序发出的 HTTP(S) 请求（B 站接口、更新检查）。浏览器里的直播画面与弹幕、QQ 收消息的 WebSocket 不走这里。<br>「不使用代理」会强制清掉代理变量，系统里设了也不用；「使用系统代理」原样沿用 <code>HTTP_PROXY</code> / <code>HTTPS_PROXY</code>；「自定义代理」只支持 <code>http://</code> / <code>https://</code>。保存后监控室立即换用新连接，采集 / 推送会在几秒内自动重启换用新配置——不用再手动重启。</p>
+    <div class="modal-foot">
+      <button class="btn sm" id="proxy-test" type="button">测试连接</button>
+      <button class="btn sm" id="proxy-save" type="button">保存</button>
+      <button class="btn sm" id="proxy-cancel" type="button">取消</button>
+    </div>
+  </div>
+</div>
+<div class="pick-tip" id="pick-tip">吸色中：对着直播画面点一下取色 · Esc 取消</div>
+<div id="toasts"></div>
+<script src="/static/vendor/mpegts.min.js?v=1.8.0"></script>
+<script src="/static/app.js?v=20261120b"></script>
+</body>
+</html>

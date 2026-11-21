@@ -1,0 +1,48 @@
+name: 功能建议
+description: 想要的新能力、想改的交互、想接的模型或渠道
+title: "[Feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 你遇到的问题
+      description: 先讲场景与痛点，再讲方案
+      placeholder: 例如：我想在管理台里直接看到本周还剩几条候选没确认，现在要自己数
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 你希望的方案
+      placeholder: 例如：日程表页顶部加一个「待确认 5 条」的角标，点了滚动到候选列表
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 考虑过的替代方案
+      description: 例如现有的命令行、外部脚本、别的项目怎么做的
+    validations:
+      required: false
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 影响范围
+      options:
+        - 只影响我自己（本地脚本 / 配置）
+        - 需要改管理台
+        - 需要改抓取或推送链路
+        - 需要改数据表结构 / 迁移
+        - 不确定
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 自查
+      options:
+        - label: 已搜索过现有 issue 与 docs/ 目录，没有重复
+          required: true
+        - label: 这个需求不需要把项目改成依赖云服务（数据仍留在本机）
+          required: false

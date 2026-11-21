@@ -1,0 +1,3636 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230e1014'/%3E%3Crect x='6' y='10' width='20' height='13' rx='3' fill='none' stroke='%2300a1d6' stroke-width='2'/%3E%3Cpath d='M13 15l4 2.5-4 2.5z' fill='%23fb7299'/%3E%3C/svg%3E">
+<title>DD全能工作间 · 监控台</title>
+<style>
+  :root{
+    --bg:#0e1014; --panel:#161a21; --panel2:#1c2129; --line:#262d38; --text:#e6ebf2;
+    --dim:#8b97a8; --blue:#00a1d6; --pink:#fb7299; --green:#3fd08a; --amber:#f2b544; --red:#f2555a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  header{padding:16px 22px 0;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#12161d,#0e1014)}
+  .row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  h1{font-size:16px;margin:0;letter-spacing:.5px;font-weight:600}
+  h1 span{color:var(--pink)}
+  .pills{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+  .pill{background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+        padding:4px 11px;font-size:12px;color:var(--dim);white-space:nowrap}
+  .pill b{color:var(--text);font-variant-numeric:tabular-nums;margin-left:5px}
+  .pill.live b{color:var(--pink)}
+  .pill.ok b{color:var(--green)}
+  .pill.warn b{color:var(--amber)}
+  .pill.bad b{color:var(--red)}
+  @keyframes pillupd{0%{background:#243447;border-color:#2e5d78}100%{background:var(--panel2);border-color:var(--line)}}
+  .pill.upd{animation:pillupd .9s ease-out}
+  nav{display:flex;flex-wrap:wrap;gap:2px;margin-top:14px}
+  nav button{background:none;border:0;color:var(--dim);padding:9px 15px;font-size:13.5px;
+             cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+  nav button:hover{color:var(--text)}
+  nav button.on{color:var(--text);border-bottom-color:var(--pink)}
+  /* 右上角「设置」菜单：齿轮按钮 + 下拉（原来的「监控室 ↗」从导航栏并进来了） */
+  .setwrap{position:relative;display:flex;align-items:center}
+  .icon-btn{display:flex;align-items:center;justify-content:center;width:30px;height:30px;
+            background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+            color:var(--dim);cursor:pointer;padding:0;font-family:inherit;transition:.15s}
+  .icon-btn:hover{color:var(--text);border-color:#3a465a;background:#222a35}
+  .icon-btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .set-pop{position:absolute;top:calc(100% + 8px);right:0;z-index:200;width:246px;
+           background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;
+           box-shadow:0 14px 34px rgba(0,0,0,.55)}
+  .set-pop.hide{display:none}
+  .set-item{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+            background:none;border:0;border-radius:7px;padding:9px 10px;color:var(--text);
+            font-family:inherit;font-size:13px;line-height:1.4;text-align:left;cursor:pointer;
+            text-decoration:none}
+  .set-item:hover{background:#222a35;text-decoration:none}
+  .set-item .si-k{font-size:11.5px;color:var(--dim);white-space:nowrap}
+  .set-item.off{color:#5f6b7c;cursor:default}
+  .set-item.off:hover{background:none}
+  .set-item.off .si-k{color:#4c5665}
+  .set-sep{height:1px;background:var(--line);margin:5px 8px}
+  main{padding:18px 22px 60px;max-width:1400px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card .k{font-size:12px;color:var(--dim);letter-spacing:.4px}
+  .card .v{font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:4px}
+  .card .s{font-size:11.5px;color:var(--dim);margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--dim);font-weight:500;font-size:12px;white-space:nowrap;position:sticky;top:0;background:var(--bg)}
+  tbody tr:hover{background:#131820}
+  td.num{font-variant-numeric:tabular-nums;color:var(--dim)}
+  .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:11.5px;border:1px solid}
+  .t-live_start{color:var(--pink);border-color:#5a2740;background:#2a1620}
+  .t-live_end{color:#9aa7b8;border-color:#2f3743;background:#1a1f27}
+  .t-dynamic{color:var(--blue);border-color:#1d4a5c;background:#102530}
+  .t-video{color:#c08bff;border-color:#3d2a5e;background:#1d1729}
+  .t-article{color:#7fd2b0;border-color:#24493c;background:#132420}
+  .st{font-size:12px}
+  .st-sent{color:var(--green)} .st-pending{color:var(--amber)} .st-failed{color:var(--red)}
+  .st-on{color:var(--pink)} .st-off{color:var(--dim)}
+  input,select,button.txt{background:var(--panel2);border:1px solid var(--line);color:var(--text);
+        border-radius:8px;padding:8px 11px;font-size:13px;font-family:inherit;outline:none}
+  input:focus,select:focus{border-color:var(--blue)}
+  input::placeholder{color:#5c6675}
+  .pushcell{white-space:nowrap}
+  span.pchip{display:inline-block;padding:1px 7px;margin-right:4px;border-radius:8px;font-size:12px;
+        border:1px solid var(--line);color:var(--dim);cursor:pointer;user-select:none}
+  span.pchip:hover{border-color:var(--pink);color:var(--text)}
+  span.pchip.on{color:var(--pink);border-color:rgba(251,114,153,.55);background:rgba(251,114,153,.08)}
+  span.pchip.wk.on{color:var(--blue);border-color:rgba(74,144,226,.55);background:rgba(74,144,226,.08)}
+  button.act,a.act{background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:7px;
+        padding:5px 10px;font-size:12px;cursor:pointer;font-family:inherit;text-decoration:none;display:inline-block;line-height:1.5}
+  button.act:hover,a.act:hover{border-color:var(--blue);color:var(--blue)}
+  button.act.danger:hover{border-color:var(--red);color:var(--red)}
+  button.primary{background:var(--pink);border:1px solid var(--pink);color:#1a1015;font-weight:600;
+        border-radius:8px;padding:8px 16px;cursor:pointer;font-family:inherit;font-size:13px}
+  button.primary:hover{filter:brightness(1.08)}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+  .hint{color:var(--dim);font-size:12px}
+  .batchbar{display:none;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px;
+        padding:9px 12px;border:1px solid #2e5d78;background:#16222c;border-radius:9px}
+  .batchbar.show{display:flex}
+  .batchbar b{color:var(--pink);font-variant-numeric:tabular-nums}
+  .grp{display:inline-block;padding:1px 8px;border-radius:6px;font-size:11.5px;
+       border:1px solid #2e5d78;background:#152129;color:#8fc3d8;white-space:nowrap}
+  .grp.none{color:var(--dim);border-color:var(--line);background:transparent}
+  tr.grprow{background:#101722;cursor:pointer}
+  tr.grprow:hover{background:#15202b}
+  tr.grprow td{padding:7px 10px;border-bottom:1px solid var(--line)}
+  tr.grprow .chev{display:inline-block;width:14px;color:var(--dim);transition:transform .15s}
+  tr.grprow.collapsed .chev{transform:rotate(-90deg)}
+  tr.grprow .gname{font-weight:600;color:#cfe0ee}
+  tr.grprow .gnum{color:var(--dim);font-size:12px;margin-left:8px}
+  tr.grprow .ghid{color:var(--dim);font-size:11.5px;margin-left:10px}
+  .gsw{display:inline-block;width:12px;height:12px;border-radius:4px;border:1px solid #4a5566;
+       vertical-align:-1px;cursor:pointer;margin-right:8px}
+  .gsw.none{background:transparent;border-style:dashed}
+  .gsw:hover{border-color:#fff}
+  .gpal{display:inline-flex;gap:5px;align-items:center;margin-left:10px;padding:3px 7px;
+        border:1px solid var(--line);border-radius:8px;background:#0d131b}
+  .gpal .chip{display:inline-block;width:14px;height:14px;border-radius:4px;border:1px solid #4a5566;cursor:pointer}
+  .gpal .chip:hover{transform:scale(1.18)}
+  .gpal .chip.on{outline:2px solid #cfe0ee;outline-offset:1px}
+  .gpal .chip.none{background:#1a2029;color:var(--dim);font-size:10px;line-height:12px;text-align:center}
+  tr.grprow[draggable="true"]{cursor:grab}
+  tr.grprow.dragging{opacity:.45}
+  tr.grprow.dragover{box-shadow:inset 0 3px 0 var(--pink)}
+  .gdrag{color:var(--dim);font-size:12px;margin-right:8px;letter-spacing:-2px;cursor:grab}
+  .gsel{margin:0 8px 0 4px;vertical-align:-2px;cursor:pointer}
+  input[type=checkbox]{width:14px;height:14px;padding:0;accent-color:var(--pink);cursor:pointer}
+  pre{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;
+      font:12px/1.65 ui-monospace,Consolas,monospace;max-height:62vh;overflow:auto;color:#c3cdda}
+  .empty{color:var(--dim);text-align:center;padding:34px 0;font-size:13px}
+  /* 接入指引（2026-11-11）：右上角常驻按钮 + 首次自动弹出的引导弹窗 */
+  .guide-btn{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;font-size:12.5px}
+  .guide-btn .gdot{width:7px;height:7px;border-radius:50%;background:var(--amber);flex:none}
+  .guide-btn .gdot.ok{background:var(--green)}
+  .guide-box{width:560px;max-width:93vw;max-height:86vh;overflow:auto;padding:20px 22px 16px}
+  .guide-head{display:flex;align-items:flex-start;gap:12px}
+  .guide-head h4{margin:0;font-size:15px}
+  .guide-lead{margin:10px 0 0;font-size:12.5px;line-height:1.8;color:var(--dim)}
+  .guide-steps{margin:14px 0 0;padding:0;list-style:none;display:grid;gap:9px}
+  .gs{border:1px solid var(--line);border-radius:10px;padding:11px 13px;background:#12161d}
+  .gs.ok{border-color:#24513c;background:#101d18}
+  .gs-h{display:flex;align-items:center;gap:9px;font-size:13px}
+  .gs-n{width:19px;height:19px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);
+        display:inline-grid;place-items:center;font-size:11.5px;color:var(--dim);flex:none}
+  .gs.ok .gs-n{background:#1c3b2c;border-color:#2c6a4c;color:var(--green)}
+  .gs-badge{margin-left:auto;font-size:11.5px;color:var(--amber);white-space:nowrap}
+  .gs.ok .gs-badge{color:var(--green)}
+  .gs-d{margin-top:6px;font-size:12.5px;line-height:1.75;color:var(--dim);padding-left:28px}
+  .gs-d b{color:#c2c9d4;font-weight:600}
+  .gs-d code{font:11.5px/1 ui-monospace,Consolas,monospace;color:#9fb2c8;background:#10141a;
+             border:1px solid var(--line);border-radius:4px;padding:1px 4px}
+  .gs-ops{margin-top:9px;padding-left:28px;display:flex;gap:8px;flex-wrap:wrap}
+  .guide-foot{margin-top:14px;padding:12px 0 4px;border-top:1px dashed var(--line);
+              display:flex;align-items:center;gap:8px;
+              position:sticky;bottom:-16px;background:var(--panel)}
+  .guide-foot .sp{flex:1}
+
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .cands{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .cand{display:flex;gap:10px;align-items:center;background:var(--panel2);border:1px solid var(--line);
+        border-radius:8px;padding:8px 10px;font-size:12.5px}
+  .cand .n{font-weight:600}
+  .cand .u{color:var(--dim)}
+  .toast{position:fixed;right:20px;bottom:20px;background:var(--panel2);border:1px solid var(--line);
+        border-left:3px solid var(--blue);border-radius:8px;padding:11px 15px;font-size:13px;
+        box-shadow:0 8px 24px rgba(0,0,0,.45);opacity:0;transform:translateY(8px);
+        transition:.2s;pointer-events:none;max-width:420px}
+  .toast.show{opacity:1;transform:none}
+  .toast.err{border-left-color:var(--red)}
+  section{display:none} section.on{display:block}
+  .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel2)}
+  .seg button{background:none;border:0;color:var(--dim);padding:6px 13px;font-size:12.5px;cursor:pointer;
+        font-family:inherit;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:0}
+  .seg button:hover{color:var(--text)}
+  .seg button.on{background:#20303d;color:var(--text)}
+  .seg button.on.m-collect{background:#3a2f16;color:var(--amber)}
+  .seg button.on.m-off{background:#3a1a1c;color:var(--red)}
+  .logwrap{max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+  .logtbl th{background:var(--panel)}
+  .logtbl td{font:12px/1.55 ui-monospace,Consolas,monospace}
+  .logmsg{white-space:pre-wrap;word-break:break-all;color:#c3cdda}
+  .lv{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;border:1px solid;font-family:inherit;white-space:nowrap}
+  .lv-error{color:var(--red);border-color:#5a2226;background:#2a1416}
+  .lv-warn{color:var(--amber);border-color:#5a4218;background:#2a2110}
+  .lv-info{color:var(--dim);border-color:#2f3743;background:#1a1f27}
+  tr.r-error td{background:#1c1214}
+  .ttag{color:var(--blue);white-space:nowrap}
+  .logsel{min-width:120px}
+  .banner{margin:12px 0 2px;padding:9px 14px;border-radius:9px;font-size:12.5px;display:none;
+        border:1px solid #5a4218;background:#2a2110;color:var(--amber);align-items:center;gap:10px}
+  .banner.show{display:flex}
+  .banner.off{border-color:#5a2226;background:#2a1416;color:var(--red)}
+  .banner button{margin-left:auto}
+  .field{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--dim)}
+  .field input,.field select{width:150px;color:var(--text)}
+  .field.wide input{width:340px}
+  .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--dim)}
+  .chk input{width:auto}
+  .split{display:flex;gap:18px;flex-wrap:wrap}
+  .mini{font-size:11.5px;color:var(--dim)}
+
+  /* ---------- 日程表（周表，见 docs/21） ---------- */
+  .wkpush{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;font-size:13px}
+  .wkpush b{font-size:13px}
+  .wkpush input[type=time]{width:108px;color:var(--text);background:var(--panel);
+    border:1px solid var(--line);border-radius:7px;padding:5px 8px}
+  .wkbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .wkweek{font-size:14px;font-weight:600;min-width:190px;text-align:center;font-variant-numeric:tabular-nums}
+  .wkweek small{color:var(--dim);font-weight:400;margin-left:7px}
+  .weekgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px}
+  @media(max-width:1280px){.weekgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  @media(max-width:780px){.weekgrid{grid-template-columns:repeat(1,minmax(0,1fr))}}
+  .wkday{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+         padding:9px 9px 11px;min-height:132px;display:flex;flex-direction:column;gap:6px}
+  .wkday.today{border-color:#2b5f80}
+  .wkday .dh{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+  .wkday .dh b{font-size:12.5px;letter-spacing:.3px}
+  .wkday .dh span{font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums}
+  .wke{font-size:12px;line-height:1.45;padding:5px 7px;border-radius:7px;background:#1a1f27;
+       border-left:2px solid #3a4759;display:block;color:var(--text);cursor:pointer}
+  .wke:hover{background:#212936;text-decoration:none}
+  .wke .t{color:var(--blue);font-variant-numeric:tabular-nums;margin-right:5px}
+  .wke .n{font-weight:600;color:var(--text)}
+  .wke .d{color:var(--dim);display:block;margin-top:1px;font-size:11.5px}
+  .wke.rev{border-left-color:var(--amber)}
+  .wke.rest{border-left-color:#333d4b;background:#171c23}
+  .wke.rest .n{font-weight:500;color:var(--dim)}
+  .wke.single{border-left-style:dashed;border-left-color:var(--blue)}
+  .wke.cancel{opacity:.55}
+  .wke.cancel .d{text-decoration:line-through;text-decoration-color:var(--red)}
+  .wke.cancel .n{text-decoration:line-through;text-decoration-color:#7a3b40}
+  .wke .k{font-size:10px;padding:0 4px;border-radius:4px;margin-left:4px;vertical-align:1px}
+  .k-s{color:var(--blue);border:1px solid #1d4a5c}
+  .k-o{color:var(--amber);border:1px solid #5a4218}
+  .k-c{color:var(--red);border:1px solid #5a2226}
+  /* 正在直播：左侧红条 + 呼吸灯，整条可点进直播间（2026-11-03） */
+  .wke.live{border-left-color:var(--red);background:#241a1d;box-shadow:0 0 0 1px #5a2226 inset}
+  .wke.live:hover{background:#2d2024;box-shadow:0 0 10px #ff4d6d33,0 0 0 1px #7a2d34 inset}
+  .wke.live .t{color:#ff8fa3}
+  .k-live{color:#fff;background:#e5354f;border:none;font-weight:600}
+  .k-l{color:#c9b6ff;border:1px solid #4a3a72}
+  .k-ocr{color:#ffb0b8;border:1px dashed #7a2f39}
+  .k-live::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;
+    background:#fff;margin-right:3px;vertical-align:1px;animation:wklive 1.6s ease-in-out infinite}
+  @keyframes wklive{0%,100%{opacity:1}50%{opacity:.25}}
+  .wkchanges{display:none;margin:16px 0 0}
+  .wkchanges>b{font-size:13px;display:block;margin-bottom:8px}
+  .chlist{display:flex;flex-direction:column;gap:6px}
+  .ch{font-size:12px;color:var(--dim);background:var(--panel);border:1px solid var(--line);
+      border-radius:8px;padding:7px 10px;display:flex;gap:10px;align-items:baseline}
+  .ch .t{color:var(--dim);font-variant-numeric:tabular-nums}
+  .ch b{color:var(--text);font-weight:600}
+  .wkext{display:none;margin:14px 0 0;font-size:12px;color:var(--dim);gap:8px;flex-wrap:wrap;align-items:center}
+  .wkext>b{color:var(--text);font-size:13px;font-weight:600}
+  .xchip{display:inline-flex;gap:6px;align-items:baseline;border:1px solid var(--line);
+         background:var(--panel);border-radius:999px;padding:4px 10px;text-decoration:none;color:var(--dim)}
+  a.xchip:hover{border-color:var(--blue);color:var(--text)}
+  .xchip .n{color:var(--text)}
+  .xchip .f{font-variant-numeric:tabular-nums}
+  .xchip.pending{opacity:.6}
+  .wkwrap{position:relative}
+  .wke.hit{outline:2px solid var(--blue);outline-offset:-1px;box-shadow:0 2px 10px rgba(76,141,255,.18)}
+  .wke.dim{opacity:.2}
+  .wkday.dim{opacity:.4}
+  .wkedit{position:absolute;top:2px;right:2px;display:none;font-size:11px;line-height:1;
+          padding:2px 5px;border-radius:5px;background:#2a333f;border:1px solid var(--line);
+          color:var(--dim);cursor:pointer}
+  .wkwrap:hover .wkedit{display:block}
+  .wkedit:hover{color:var(--text);border-color:var(--blue)}
+  .wkadd{background:none;border:1px solid var(--line);color:var(--dim);border-radius:6px;
+         padding:0 6px;font-size:12px;cursor:pointer;line-height:1.6;font-family:inherit}
+  .wkadd:hover{color:var(--text);border-color:var(--blue)}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;
+         align-items:center;justify-content:center;z-index:60}
+  .modal.show{display:flex}
+  .mbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+        padding:18px 20px;width:440px;max-width:93vw}
+  .mbox h4{margin:0 0 14px;font-size:14px}
+  .mrow{display:flex;gap:10px;margin-bottom:10px}
+  .mrow label{flex:1;font-size:12px;color:var(--dim);display:flex;flex-direction:column;gap:4px}
+  .mrow input,.mrow select{width:100%}
+  .mops{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+  .mops .danger{color:var(--red);border-color:#5a2226}
+  .mops .danger:hover{background:#2a1416}
+  /* 关于弹窗（2026-11-10）：与监控室同一套信息，按管理台字号放大一档 */
+  .about-box{width:520px;max-width:93vw;max-height:82vh;overflow:auto;padding:20px 22px 16px}
+  .about-head{display:flex;align-items:flex-start;gap:16px}
+  .about-id{min-width:0}
+  .about-box h3{margin:0;font-size:16px;line-height:1.35;letter-spacing:.01em}
+  .about-ver{margin-top:6px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+  .about-ver b{font:600 12px/1 ui-monospace,Consolas,monospace;color:var(--text)}
+  .about-ver .sep{color:#5a6577}
+  .about-x{margin-left:auto;flex:none;width:26px;height:26px;display:grid;place-items:center;border-radius:7px;
+           border:1px solid transparent;background:none;color:var(--dim);cursor:pointer}
+  .about-x:hover{color:var(--text);background:var(--panel2);border-color:var(--line)}
+  .about-lead{margin:14px 0 0;font-size:13px;line-height:1.8;color:#c2c9d4}
+  .about-points{margin:13px 0 0;padding:0;list-style:none;display:grid;gap:7px}
+  .about-points li{position:relative;padding-left:13px;font-size:12.5px;line-height:1.75;color:var(--dim)}
+  .about-points li::before{content:"";position:absolute;left:0;top:8px;width:4px;height:4px;border-radius:50%;background:var(--pink);opacity:.7}
+  .about-points b{margin-right:6px;font-weight:600;color:#c2c9d4}
+  .about-points code{font:12px/1 ui-monospace,Consolas,monospace;color:#9fb2c8;background:#10141a;
+           border:1px solid var(--line);border-radius:4px;padding:1px 4px;white-space:nowrap}
+  .about-kv{margin:15px 0 0;display:grid;grid-template-columns:58px 1fr;gap:7px 12px;padding:11px 13px;
+           border:1px solid var(--line);border-radius:9px;background:#12161c}
+  .about-kv dt{font-size:11.5px;color:#6e7987;letter-spacing:.04em;line-height:1.7}
+  .about-kv dd{margin:0;font-size:12.5px;color:#c2c9d4;line-height:1.7;word-break:break-all;user-select:text}
+  .about-kv dd.muted{color:var(--dim)}
+  .about-kv dd a{color:#9fc6ff;text-decoration:none;border-bottom:1px dashed rgba(159,198,255,.35)}
+  .about-kv dd a:hover{color:#cfe2ff;border-bottom-color:rgba(207,226,255,.7)}
+  /* 更新检查弹窗（2026-11-10）：只读 Gitee 上的 VERSION 比对，不下载、不升级 */
+  .upd-box{width:430px;max-width:93vw;padding:18px 20px 15px}
+  .upd-head{display:flex;align-items:center;gap:12px}
+  .upd-head h4{margin:0;font-size:14.5px}
+  .upd-status{margin:14px 0 0;font-size:13px;line-height:1.7;color:#c2c9d4}
+  .upd-status.upd-ok{color:#7ee2a8}
+  .upd-status.upd-new{color:#ffb3c8}
+  .upd-status.upd-fail{color:#ff9d9d}
+  .upd-kv{margin:12px 0 0;display:grid;grid-template-columns:72px 1fr;gap:6px 12px;padding:10px 12px;
+          border:1px solid var(--line);border-radius:8px;background:#12161c}
+  .upd-kv dt{font-size:11.5px;color:#6e7987;letter-spacing:.04em}
+  .upd-kv dd{margin:0;font:600 12.5px/1.6 ui-monospace,Consolas,monospace;color:#c2c9d4}
+  .upd-hint{margin:11px 0 0;font-size:11.5px;line-height:1.7;color:#6e7987}
+  .upd-hint code{font:11px/1 ui-monospace,Consolas,monospace;color:#9fb2c8;background:#10141a;
+          border:1px solid var(--line);border-radius:4px;padding:1px 4px}
+  /* 网络代理弹窗（2026-11-12）：配置存 config/proxy.json，保存后本进程立即生效 */
+  .proxy-box{width:470px;max-width:93vw;padding:18px 20px 15px}
+  .proxy-head{display:flex;align-items:center;gap:12px}
+  .proxy-head h4{margin:0;font-size:14.5px}
+  .proxy-modes{display:flex;gap:18px;flex-wrap:wrap;margin:15px 0 0;font-size:13px;color:#c2c9d4}
+  .proxy-mode{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+  .proxy-mode input{width:14px;height:14px;margin:0;accent-color:var(--pink);cursor:pointer}
+  .proxy-url{margin:10px 0 0}
+  .proxy-url input{width:100%;box-sizing:border-box}
+  .proxy-url input:disabled{opacity:.5;cursor:not-allowed}
+  .proxy-status{margin:11px 0 0;font-size:12.5px;line-height:1.7;color:var(--dim)}
+  .proxy-status.ok{color:#7ee2a8}
+  .proxy-status.fail{color:#ff9d9d}
+  .proxy-hint{margin:11px 0 0;font-size:11.5px;line-height:1.75;color:#6e7987}
+  .proxy-hint code{font:11px/1 ui-monospace,Consolas,monospace;color:#9fb2c8;background:#10141a;
+          border:1px solid var(--line);border-radius:4px;padding:1px 4px}
+  .about-foot{margin:14px 0 0;padding-top:11px;border-top:1px dashed var(--line);display:grid;gap:3px;
+           font-size:11.5px;line-height:1.6;color:#6e7987}
+  .wkday .none{font-size:11.5px;color:#4d5866}
+  .wkmeta{font-size:12.5px;color:var(--dim);margin:18px 0 8px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .wkmeta b{color:var(--text);font-size:13px}
+  .wkprogs{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 14px}
+  .pchip{display:inline-flex;gap:8px;align-items:baseline;border:1px solid var(--line);
+        border-radius:999px;padding:4px 11px;font-size:12px;color:var(--dim);cursor:pointer;
+        background:var(--panel);white-space:nowrap}
+  .pchip:hover{border-color:var(--blue);color:var(--text)}
+  .pchip b{color:var(--text);font-weight:600}
+  .pchip .hs{color:#c9b6ff}
+  .pchip .n{color:var(--dim)}
+  .wkcands{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+  .wkcand{border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--panel);font-size:11.5px}
+  .wkcand .im{height:104px;background:#0f1319;display:block;overflow:hidden;cursor:zoom-in}
+  .wkcand .im img{width:100%;height:100%;object-fit:cover;display:block}
+  .wkcand .bd{padding:7px 8px 6px}
+  .wkcand .bd b{font-size:12px;display:block;margin-bottom:2px}
+  .wkcand .bd .tx{color:var(--dim);line-height:1.45;height:2.9em;overflow:hidden}
+  .wkcand .bd .ti{color:var(--text);line-height:1.45;margin-bottom:3px;display:-webkit-box;
+        -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .wkcand .ops{display:flex;gap:5px;padding:0 8px 8px;flex-wrap:wrap}
+  .wkcand .ops button,.wkcand .ops a{padding:3px 8px;font-size:11px;border-radius:6px;
+        white-space:nowrap;
+        background:var(--panel2);border:1px solid var(--line);color:var(--text);cursor:pointer}
+  .wkcand{position:relative}
+  .wkcand.picked{border-color:var(--blue);box-shadow:0 0 0 1px #1d4a5c inset}
+  .wkcand .pick{position:absolute;top:6px;left:6px;z-index:2;background:rgba(14,16,20,.8);
+        border-radius:5px;padding:1px 3px;line-height:1}
+  .wkcand .pick input{width:auto;margin:0}
+  .wkcand .who{display:flex;align-items:center;gap:6px}
+  .wkcand .tag-h{font-size:10px;padding:0 5px;border-radius:4px;border:1px solid #5a4218;
+        color:var(--amber);white-space:nowrap}
+  .wkbulk{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px;
+        font-size:12.5px;color:var(--dim)}
+  .wkbulk label{display:flex;align-items:center;gap:5px;color:var(--dim);cursor:pointer}
+  .wkbulk input{width:auto}
+  .wkbulk button{padding:4px 10px;font-size:12px;border-radius:7px;background:var(--panel2);
+        border:1px solid var(--line);color:var(--text);cursor:pointer}
+  .wkbulk button:hover{background:#2a333f}
+  .wkbulk button:disabled{opacity:.45;cursor:default}
+  .wkcand .ops button:hover,.wkcand .ops a:hover{background:#2a333f;text-decoration:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <h1>DD全能工作间 <span>/ 监控台</span></h1>
+    <div class="seg" id="gswitch"></div>
+    <div class="pills" id="pills"></div>
+    <button class="act guide-btn" id="guideBtn" type="button"
+            title="接入指引：绑定 B 站账号 / QQ 机器人；绑上后采集与推送进程会自动开启">
+      <span class="gdot" id="guideDot"></span>接入指引
+    </button>
+    <span class="setwrap">
+      <button class="icon-btn" id="settings-btn" type="button" title="设置" aria-label="设置"
+              aria-haspopup="menu" aria-expanded="false" aria-controls="settings-menu">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <div class="set-pop hide" id="settings-menu" role="menu" aria-label="设置">
+        <a class="set-item" role="menuitem" data-set="livedeck" href="http://127.0.0.1:8760/" target="_blank" rel="noopener"
+           title="监控室：多屏直播 + 合并弹幕（127.0.0.1:8760）。打不开就是没在跑 —— 到「进程」页点 livedeck 的「启动」">
+          <span class="si-t">监控室</span><span class="si-k">127.0.0.1:8760 ↗</span>
+        </a>
+        <button class="set-item" type="button" role="menuitem" data-set="proxy"
+                title="网络代理：给本程序的 HTTP(S) 请求（B 站接口、卡片图、更新检查）套一个本机代理">
+          <span class="si-t">网络代理</span><span class="si-k" id="proxyTag">读取中</span>
+        </button>
+        <div class="set-sep"></div>
+        <button class="set-item" type="button" role="menuitem" data-set="check"
+                title="检查 Gitee 上有没有新版本（只读 VERSION，不下载、不自动升级）">
+          <span class="si-t">更新检查</span><span class="si-k">与 Gitee 比对</span>
+        </button>
+        <button class="set-item" type="button" role="menuitem" data-set="about"
+                title="DD全能工作间 · 版本与开发者信息">
+          <span class="si-t">关于</span><span class="si-k">版本信息</span>
+        </button>
+      </div>
+    </span>
+  </div>
+  <div class="banner" id="banner"></div>
+  <nav>
+    <button data-tab="overview" class="on">概览</button>
+    <button data-tab="subjects">监控名单</button>
+    <button data-tab="events">事件</button>
+    <button data-tab="weekly" id="navWeekly" style="display:none">日程表</button>
+    <button data-tab="deliveries">投递</button>
+    <button data-tab="qq">机器人</button>
+    <button data-tab="logs">日志</button>
+    <button data-tab="tasks">进程</button>
+    <button data-tab="cleanup">录播清理</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-overview" class="on">
+    <div class="grid" id="cards"></div>
+    <h3 style="font-size:13px;color:var(--dim);margin:22px 0 8px">推送目标</h3>
+    <div class="card" style="padding:6px 16px 10px">
+      <table><thead><tr><th>目标</th><th>通道</th><th>类型</th><th>external_id</th><th>状态</th><th></th></tr></thead>
+      <tbody id="targets"></tbody></table>
+    </div>
+
+    <h3 style="font-size:13px;color:var(--dim);margin:22px 0 8px">B 站登录态（SESSDATA）</h3>
+    <div class="card" style="padding:14px 16px">
+      <div id="authState" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px"></div>
+      <div class="toolbar" style="margin:12px 0 0">
+        <input id="sessInput" type="password" placeholder="粘贴 SESSDATA（浏览器 F12 → Application → Cookies）" style="width:400px">
+        <button class="primary" id="sessSave">保存并校验</button>
+        <button class="act" id="sessClear">清除</button>
+        <button class="act" id="svcRestart">重启采集进程</button>
+        <span class="hint" id="authHint">只读公开接口，不做点赞/评论；保存后需重启才生效</span>
+      </div>
+      <div class="toolbar" style="margin:12px 0 0;padding-top:12px;border-top:1px solid var(--line)">
+        <button class="primary" id="qrStart">扫码登录（推荐，不依赖浏览器）</button>
+        <span class="hint">扫码会话由采集侧自己持有：浏览器退出登录、换小号或换大号，都不会让它失效</span>
+      </div>
+      <div id="qrBox" style="display:none;margin-top:12px">
+        <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+          <div id="qrImg" style="background:#fff;padding:8px;border-radius:8px;line-height:0"></div>
+          <div style="font-size:12.5px;line-height:1.9;color:var(--text)">
+            <div id="qrState">等待扫码…</div>
+            <div class="hint" style="margin-top:2px">手机 B 站 App →「我的」→ 右上角扫一扫</div>
+            <div class="hint" style="margin-top:2px">二维码 3 分钟内有效；过期后重新点左边的按钮</div>
+            <button class="act" id="qrCancel" style="margin-top:10px">取消扫码</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="font-size:13px;color:var(--dim);margin:22px 0 8px">动态采集方式</h3>
+    <div class="card" style="padding:14px 16px">
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <span id="feedBadge" class="st st-off">读取中…</span>
+        <label class="field" style="min-width:190px">取数方式
+          <select id="feedMode" onchange="feedModeChanged()">
+            <option value="auto">自动（有登录凭据时走关注流）</option>
+            <option value="feed">关注流（推荐）</option>
+            <option value="per_user">逐人轮询</option>
+          </select>
+        </label>
+        <button class="primary" id="feedModeSave" disabled>切换（需重启）</button>
+        <span class="hint" id="feedModeDirtyHint" style="display:none;color:var(--amber)">选项已改动，点「切换」才保存</span>
+        <span style="flex:1"></span>
+        <button class="act" id="feedNow">立即取流</button>
+        <button class="act" id="feedSweep">立即补漏</button>
+        <button class="act" id="feedSync">同步关注</button>
+      </div>
+      <div id="feedBody" style="margin-top:12px;font-size:12.5px;line-height:1.9;color:var(--text)"></div>
+      <div class="hint" id="feedHint" style="margin-top:6px"></div>
+    </div>
+  </section>
+
+  <section id="tab-subjects">
+    <div class="toolbar">
+      <input id="addInput" placeholder="UID 或 主播名，回车添加" style="width:300px">
+      <button class="primary" id="addBtn">添加</button>
+      <span class="hint">新加入的号下一轮只建基线，不推历史动态</span>
+    </div>
+    <div class="cands" id="cands"></div>
+    <div class="toolbar" style="margin:12px 0 8px">
+      <select id="grpFilter"><option value="__all">全部分组</option></select>
+      <span class="hint" id="grpHint"></span>
+      <span style="flex:1"></span>
+      <button class="act" id="grpExpandAll" title="展开所有分组">全部展开</button>
+      <button class="act" id="grpCollapseAll" title="折叠所有分组">全部折叠</button>
+      <button class="act" id="grpRename" style="display:none">重命名分组</button>
+      <button class="act danger" id="grpDelete" style="display:none">删除分组</button>
+    </div>
+    <div class="batchbar" id="batchbar">
+      <span class="hint">已选 <b id="selCount">0</b> 个</span>
+      <select id="grpMove"><option value="">未分组</option></select>
+      <button class="act" id="bMove">移到该分组</button>
+      <button class="act danger" id="bRemove">移除</button>
+      <button class="act" id="bClear">取消选择</button>
+    </div>
+    <div class="card" style="padding:6px 16px 10px">
+      <table>
+        <thead><tr><th style="width:30px"><input type="checkbox" id="selAll" title="全选当前展开的分组（折叠的不会被选中）"></th>
+          <th>UID</th><th>主播</th><th>分组</th><th>直播间</th><th>直播状态</th><th>基线</th><th>推送</th><th id="thWeekly" style="display:none">日程</th><th>最后轮询</th><th></th></tr></thead>
+        <tbody id="subjects"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-events">
+    <div class="toolbar">
+      <select id="evFilter"><option value="0">全部主播</option></select>
+      <span class="hint" id="evHint"></span>
+    </div>
+    <div class="card" style="padding:6px 16px 10px">
+      <table><thead><tr><th>时间</th><th>主播</th><th>类型</th><th>标题</th><th>投递</th></tr></thead>
+      <tbody id="events"></tbody></table>
+    </div>
+  </section>
+
+  <section id="tab-deliveries">
+    <div class="toolbar">
+      <select id="dlFilter">
+        <option value="">全部</option><option value="pending">待发</option>
+        <option value="failed">失败/死信</option><option value="sent">已发</option>
+        <option value="dismissed">已忽略</option>
+      </select>
+      <button class="act" id="dlRefresh">刷新</button>
+      <span class="hint">失败可以「重投」或「忽略」；忽略后不再重发、不再计入失败数</span>
+    </div>
+    <div class="card" style="padding:6px 16px 10px">
+      <table><thead><tr><th>#</th><th>主播</th><th>类型</th><th>标题</th><th>状态</th><th>尝试</th><th>错误</th><th></th></tr></thead>
+      <tbody id="deliveries"></tbody></table>
+    </div>
+  </section>
+
+  <section id="tab-weekly">
+    <div class="card wkpush">
+      <b>每日推送</b>
+      <span class="hint">每天把当天日程推到 QQ；默认 08:10，改完 1 分钟内生效</span>
+      <input type="time" id="wkPushAt" step="60" title="每日推送时间">
+      <button class="primary" id="wkPushSave">保存时间</button>
+    </div>
+    <div class="wkbar">
+      <button class="act" id="wkPrev">‹ 上一周</button>
+      <div class="wkweek" id="wkWeek">—</div>
+      <button class="act" id="wkNext">下一周 ›</button>
+      <button class="act" id="wkToday">本周</button>
+      <select id="wkPick" class="logsel" title="已有数据的周"></select>
+      <select id="wkWho" class="logsel" title="按主播筛选：选中后高亮 TA 这一周的场次，其余变暗"></select>
+      <span class="hint" id="wkHint"></span>
+    </div>
+    <div class="weekgrid" id="weekGrid"></div>
+    <div class="wkchanges" id="wkChanges"></div>
+    <div class="wkext" id="wkExt"></div>
+    <div class="wkmeta">
+      <b>常驻联动节目</b>
+      <span class="hint" id="wkProgHint">固定主持的节目（如 屋里吃饭）：动态里只写嘉宾时，日程表按节目名把常驻主持补进同一条</span>
+      <button class="act" id="wkProgAdd" style="margin-left:auto">＋ 新建节目</button>
+    </div>
+    <div class="wkprogs" id="wkProgs"></div>
+    <div class="wkmeta">
+      <b>待确认候选</b>
+      <span id="wkPendHint">从主播动态里捞出来的疑似周表图，等人工判定</span>
+      <span class="hint" id="wkCache" style="margin-left:auto"></span>
+      <button class="act" id="wkCacheClean">清理已判定缓存</button>
+    </div>
+    <div class="wkbulk">
+      <label><input type="checkbox" id="wkAll"> 全选</label>
+      <span id="wkSelInfo">未选择</span>
+      <button class="act" id="wkBulkWeek" disabled>标为周表</button>
+      <button class="act" id="wkBulkSingle" disabled>标为单场</button>
+      <button class="act" id="wkBulkNone" disabled>标为非日程</button>
+    </div>
+    <div class="wkcands" id="wkCands"></div>
+  </section>
+
+  <section id="tab-qq">
+    <div class="card" style="padding:14px 16px">
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <div style="font-size:13px;font-weight:600">QQ 官方机器人</div>
+        <span id="qqState" class="st st-off">读取中…</span>
+        <span class="hint" id="qqHint">没有机器人？去 q.qq.com 注册个人开发者 → 创建机器人 → 复制 AppID / AppSecret。同一页要把你家宽带的公网 IP 加进白名单；调试期也可以只把你自己的 QQ 号加成「开发体验用户」。</span>
+      </div>
+      <div class="split" style="margin-top:14px">
+        <label class="field">AppID<input id="qqAppId" placeholder="例如 1028xxxxxx" autocomplete="off"></label>
+        <label class="field wide">AppSecret<input id="qqSecret" type="password" placeholder="留空表示不修改已保存的值" autocomplete="off"></label>
+      </div>
+      <div class="toolbar" style="margin:14px 0 0">
+        <button class="primary" id="qqSave">保存并校验</button>
+        <button class="act" id="qqVerify">用已保存的凭据重新校验</button>
+        <button class="act" id="qqRestart">重启推送进程</button>
+        <span class="hint" id="qqCredHint">保存到 BBOT.env（仅本人可读），页面不回显原值；改完要重启采集进程才生效</span>
+      </div>
+    </div>
+
+    <div class="card" id="qqBindCard" style="margin-top:14px;padding:14px 16px">
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <div style="font-size:13px;font-weight:600">绑定推送目标（openid）</div>
+        <span id="qqIdState" class="st st-off">未绑定</span>
+        <span style="flex:1"></span>
+        <button class="primary" id="qqListen">开始监听</button>
+        <button class="act" id="qqStop" disabled>停止</button>
+        <button class="act danger" id="qqClearIds">清除 openid</button>
+      </div>
+      <div class="mini" style="margin-top:10px;line-height:1.9">
+        点「开始监听」后，用要收推送的那个 QQ 号私聊机器人发一句话（群里 @ 它也行），openid 会自动写进 .p0_ids.json。<br>
+        机器人不能主动加你好友，所以必须先由你发第一条消息；发完记得重启采集进程。
+      </div>
+      <div id="qqListenBox" style="display:none;margin-top:10px;font-size:12.5px;line-height:1.9"></div>
+      <div class="split" style="margin-top:12px">
+        <label class="field wide">私聊 openid<input id="qqUserId" placeholder="监听后自动填；也可手动粘贴" autocomplete="off"></label>
+        <label class="field wide">群 openid<input id="qqGroupId" placeholder="可选：群里 @ 机器人后自动填" autocomplete="off"></label>
+      </div>
+      <div class="toolbar" style="margin:12px 0 0">
+        <button class="act" id="qqSaveIds">保存 openid</button>
+        <span class="hint" id="qqIdFile"></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px">发一条测试消息</div>
+      <div class="toolbar" style="margin:0">
+        <select id="qqTestKind"><option value="user">私聊</option><option value="group">群</option></select>
+        <input id="qqTestText" placeholder="默认：这是一条来自 B 站监控台的测试消息" style="width:420px">
+        <button class="act" id="qqTest">发送</button>
+        <span class="hint" id="qqTestHint">收到说明 token → 发送 → 手机 整条链路是通的</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-logs">
+    <div class="toolbar">
+      <select id="logDate" class="logsel" title="按日期"></select>
+      <select id="logTag" class="logsel" title="按类型"></select>
+      <select id="logLevel" class="logsel" title="按严重程度"></select>
+      <input id="logQ" placeholder="关键字，如 为空 / 主播名 / locked" style="width:230px">
+      <select id="logLines" class="logsel" title="显示条数">
+        <option value="200">200 条</option>
+        <option value="500">500 条</option>
+        <option value="1000">1000 条</option>
+      </select>
+      <button class="primary" id="logRefresh">查询</button>
+      <label class="hint" style="display:flex;gap:5px;align-items:center">
+        <input type="checkbox" id="logAuto" checked style="width:auto"> 3 秒自动刷新
+      </label>
+      <span class="hint" id="logInfo"></span>
+    </div>
+    <div class="logwrap" id="logWrap">
+      <table class="logtbl">
+        <thead><tr><th style="width:132px">时间</th><th style="width:58px">级别</th><th style="width:76px">类型</th><th>内容</th></tr></thead>
+        <tbody id="logs"><tr><td colspan="4" class="empty">正在读取…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-tasks">
+    <div class="card" style="padding:14px 16px">
+      <div class="row" style="gap:10px;flex-wrap:wrap">
+        <div style="font-size:13px;font-weight:600">后台任务与独立进程</div>
+        <span class="hint" id="taskHint"></span>
+      </div>
+    </div>
+    <div id="taskGroups"><div class="card" style="margin-top:14px;padding:14px 16px"><span class="hint">正在读取…</span></div></div>
+  </section>
+
+  <section id="tab-cleanup">
+    <div class="grid" id="cleanupCards"></div>
+
+    <div class="card" style="margin-top:14px;padding:14px 16px">
+      <div class="row" style="gap:10px">
+        <div style="font-size:13px;font-weight:600">自动清理</div>
+        <span id="cleanupEnabledState" class="st st-off">读取中…</span>
+        <button class="act" id="cleanupToggle">…</button>
+        <span class="hint" id="cleanupEnabledHint"></span>
+      </div>
+      <div class="toolbar" style="margin:12px 0 0;padding-top:12px;border-top:1px solid var(--line)">
+        <button class="primary" id="cleanupScan">立即扫描（dry-run）</button>
+        <button class="act" id="cleanupRun">立即检查并通知</button>
+        <button class="act" id="cleanupStart">启动守护</button>
+        <button class="act danger" id="cleanupStop">停止守护</button>
+        <button class="act" id="cleanupRestart">重启守护</button>
+        <span class="hint" id="cleanupActionHint">扫描只读；检查会先通过 QQ Bot 通知，1 小时后才删</span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">清理设置</div>
+      <div class="split">
+        <label class="field wide">录像根目录（只读）
+          <input id="cleanupRoot" placeholder="填写已存在的录像目录完整路径">
+        </label>
+        <label class="field">录像上限（GB）
+          <input id="cleanupMax" type="number" min="0.01" step="0.1">
+        </label>
+        <label class="field">磁盘保底（GB）
+          <input id="cleanupMinFree" type="number" min="0" step="0.1">
+        </label>
+        <label class="field">保护最近（分钟）
+          <input id="cleanupKeep" type="number" min="1" step="1">
+        </label>
+        <label class="field">检查间隔（天）
+          <input id="cleanupDays" type="number" min="1" max="365" step="1">
+        </label>
+        <label class="field">执行时间
+          <input id="cleanupTime" type="time">
+        </label>
+        <label class="field wide">保护目录（只读）
+          <input id="cleanupProtected" disabled>
+        </label>
+      </div>
+      <div class="toolbar" style="margin:14px 0 0">
+        <button class="primary" id="cleanupSave">保存设置</button>
+        <label class="chk"><input type="checkbox" id="cleanupDry"> dry-run：只报告，不删除</label>
+        <span class="hint" id="cleanupDirtyHint"></span>
+      </div>
+      <div class="mini" style="margin-top:10px">每 N 天的指定时间检查一次；发现超限先生成待确认计划，通过监控台 Bot 推送，1 小时内未拒绝才删除。回复保留的文件会移入保护目录，不参与后续清理。</div>
+    </div>
+
+    <div class="card" style="margin-top:14px;padding:14px 16px">
+      <div class="row" style="gap:10px">
+        <div style="font-size:13px;font-weight:600">待确认清理</div>
+        <span id="cleanupReviewState" class="st st-off">无计划</span>
+        <span class="hint" id="cleanupReviewHint">发现超限后先在这里展示，并同步推送到 QQ</span>
+      </div>
+      <div id="cleanupReviewBody" class="mini" style="margin-top:10px">当前没有待确认的清理计划。</div>
+    </div>
+
+    <div class="card" style="margin-top:14px;padding:14px 16px">
+      <div class="row" style="gap:10px">
+        <div style="font-size:13px;font-weight:600">登录自启</div>
+        <span id="cleanupAutostartState" class="st st-off">读取中…</span>
+        <button class="act" id="cleanupAutostartBtn">…</button>
+        <span class="hint" id="cleanupAutostartPath"></span>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;padding:14px 16px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:12px">清理日志</div>
+      <div class="toolbar">
+        <select id="cleanupLogLevel" class="logsel">
+          <option value="">全部级别</option>
+          <option value="error">错误</option>
+          <option value="warn">警告</option>
+          <option value="info">信息</option>
+        </select>
+        <input id="cleanupLogQ" placeholder="关键字，如 删除 / 磁盘 / 失败" style="width:240px">
+        <button class="act" id="cleanupLogRefresh">查询</button>
+        <label class="chk"><input type="checkbox" id="cleanupLogAuto" checked> 3 秒自动刷新</label>
+        <span class="hint" id="cleanupLogInfo"></span>
+      </div>
+      <div class="logwrap" id="cleanupLogWrap">
+        <table class="logtbl">
+          <thead><tr><th style="width:145px">时间</th><th style="width:64px">级别</th><th>内容</th></tr></thead>
+          <tbody id="cleanupLogs"><tr><td colspan="3" class="empty">正在读取…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- 关于弹窗（2026-11-10）：与监控室共用一套信息，版本号由 /api/version 提供 -->
+<div class="modal" id="aboutModal">
+  <div class="mbox about-box" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="about-head">
+      <div class="about-id">
+        <h3 id="aboutTitle">DD全能工作间</h3>
+        <div class="about-ver"><span>版本</span><b id="aboutVer">—</b><span class="sep">·</span><span>MIT 许可</span></div>
+      </div>
+      <button class="about-x" id="aboutClose" type="button" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+    <p class="about-lead">在本机常驻，盯着你关注的 B 站主播：开播、下播、发动态，画成卡片图，通过你自己的 QQ 机器人推给你。附监控台与监控室两个界面。</p>
+    <ul class="about-points">
+      <li><b>数据只在本机</b>库在 <code>data/</code>，日志在 <code>logs/</code>，导出物在 <code>out/</code>；凭据只写 <code>config/*.env</code>，不入库、不上传。</li>
+      <li><b>只监听环回</b>两个服务都只绑定 <code>127.0.0.1</code>，不对局域网或公网开放。</li>
+      <li><b>非官方工具</b>与哔哩哔哩、腾讯无任何关联；不做风控绕过，不用于商业分发。</li>
+    </ul>
+    <dl class="about-kv">
+      <dt>开发者</dt><dd>VictorKiseki · VictorKiseki@gmail.com</dd>
+      <dt>源码</dt><dd><a href="https://github.com/VictorKiseki/bili-monitor" target="_blank" rel="noopener">github.com/VictorKiseki/bili-monitor</a></dd>
+      <dt>反馈</dt><dd><a href="https://github.com/VictorKiseki/bili-monitor/issues" target="_blank" rel="noopener">GitHub Issues（提问题 / 提需求）</a></dd>
+    </dl>
+    <div class="about-foot">
+      <span>Python 3.10–3.12（64 位）· Windows 10 1809 及以上</span>
+      <span>mpegts.js 1.8.0（MIT）· © 2026 VictorKiseki</span>
+    </div>
+  </div>
+</div>
+
+<!-- 更新检查弹窗（2026-11-10）：只读 Gitee 上的 VERSION 比对，不下载、不自动升级 -->
+<div class="modal" id="updModal">
+  <div class="mbox upd-box" role="dialog" aria-modal="true" aria-labelledby="updTitle">
+    <div class="upd-head">
+      <h4 id="updTitle">版本更新</h4>
+      <button class="about-x" id="updClose" type="button" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+    <p class="upd-status" id="updStatus">正在检查…</p>
+    <dl class="upd-kv">
+      <dt>当前版本</dt><dd id="updCur">—</dd>
+      <dt>最新版本</dt><dd id="updLatest">—</dd>
+    </dl>
+    <p class="upd-hint" id="updHint">支持在线更新的安装会下载并校验增量包，随后短暂重启。</p>
+    <div class="mops">
+      <a class="act" id="updLink" href="https://github.com/VictorKiseki/bili-monitor" target="_blank" rel="noopener">打开 GitHub 仓库</a>
+      <button class="act" id="updApply" type="button" hidden>立即更新</button>
+      <button class="act" id="updOk" type="button">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 网络代理（2026-11-12）：配置存 config/proxy.json，只作用于本程序的 HTTP(S) 请求 -->
+<div class="modal" id="proxyModal">
+  <div class="mbox proxy-box" role="dialog" aria-modal="true" aria-labelledby="proxyTitle">
+    <div class="proxy-head">
+      <h4 id="proxyTitle">网络代理</h4>
+      <button class="about-x" id="proxyClose" type="button" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+    <div class="proxy-modes">
+      <label class="proxy-mode"><input type="radio" name="proxyMode" id="proxyModeNone" value="none"><span>不使用代理</span></label>
+      <label class="proxy-mode"><input type="radio" name="proxyMode" id="proxyModeSystem" value="system"><span>使用系统代理</span></label>
+      <label class="proxy-mode"><input type="radio" name="proxyMode" id="proxyModeCustom" value="custom"><span>自定义代理</span></label>
+    </div>
+    <div class="proxy-url">
+      <input type="text" id="proxyUrl" placeholder="http://127.0.0.1:7890" spellcheck="false" autocomplete="off">
+    </div>
+    <p class="proxy-status" id="proxyStatus">读配置中…</p>
+    <p class="proxy-hint">只作用于本程序发出的 HTTP(S) 请求（B 站接口、卡片图、更新检查）。浏览器里的直播画面与弹幕、QQ 收消息的 WebSocket 不走这里。<br>「不使用代理」会强制清掉代理变量，系统里设了也不用；「使用系统代理」原样沿用 <code>HTTP_PROXY</code> / <code>HTTPS_PROXY</code>；「自定义代理」只支持 <code>http://</code> / <code>https://</code>。保存后本进程立即换用，采集 / 推送会在几秒内自动重启换用新配置，监控室自己重建连接池——都不用再去「进程」页手动重启。</p>
+    <div class="mops">
+      <button class="act" id="proxyTest" type="button">测试连接</button>
+      <button class="act" id="proxySave" type="button">保存</button>
+      <button class="act" id="proxyCancel" type="button">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 接入指引（2026-11-11）：首次打开自动显示；右上角「接入指引」按钮可随时重看 -->
+<div class="modal" id="guideModal">
+  <div class="mbox guide-box" role="dialog" aria-modal="true" aria-labelledby="guideTitle">
+    <div class="guide-head">
+      <h4 id="guideTitle">接入指引</h4>
+      <button class="about-x" id="guideClose" type="button" title="关闭" aria-label="关闭">
+        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </div>
+    <p class="guide-lead">装完就能打开这一页，不用改文件、不用重装。下面四件事都在页面里点完；
+      绑好之后，采集进程（取数）和推送进程（发 QQ）会自己起来。</p>
+    <ol class="guide-steps">
+      <li class="gs" id="gsBili">
+        <div class="gs-h"><span class="gs-n">1</span><b>绑定 B 站账号</b><span class="gs-badge" id="gsBiliBadge">检查中</span></div>
+        <div class="gs-d" id="gsBiliText">采集要用<b>你自己的登录态</b>：概览页「B 站登录态」→「扫码登录」，手机 B 站 App 扫一下即可。</div>
+        <div class="gs-ops">
+          <button class="act" type="button" data-guide-go="overview" data-guide-do="qr">去扫码登录</button>
+        </div>
+      </li>
+      <li class="gs" id="gsQQ">
+        <div class="gs-h"><span class="gs-n">2</span><b>接入 QQ 机器人</b><span class="gs-badge" id="gsQQBadge">检查中</span></div>
+        <div class="gs-d" id="gsQQText">推送要用<b>你自己的机器人</b>：机器人页填 AppID / AppSecret，再让目标 QQ 私聊机器人一句话，点「抓取推送目标」。</div>
+        <div class="gs-ops">
+          <button class="act" type="button" data-guide-go="qq" data-guide-focus="qqAppId">去填凭据</button>
+          <button class="act" type="button" data-guide-go="qq" data-guide-focus="qqListen">抓推送目标</button>
+        </div>
+      </li>
+      <li class="gs" id="gsSubj">
+        <div class="gs-h"><span class="gs-n">3</span><b>确认监控名单</b><span class="gs-badge" id="gsSubjBadge">可选</span></div>
+        <div class="gs-d" id="gsSubjText">默认是示例名单：在「监控名单」页按 UID 或主播名添加要盯的人；新加入的号下一轮只建基线，不推历史动态。</div>
+        <div class="gs-ops">
+          <button class="act" type="button" data-guide-go="subjects">去改名单</button>
+        </div>
+      </li>
+      <li class="gs" id="gsProc">
+        <div class="gs-h"><span class="gs-n">4</span><b>采集 / 推送进程</b><span class="gs-badge" id="gsProcBadge">检查中</span></div>
+        <div class="gs-d" id="gsProcText">两者都由监控台主进程托管：绑上账号自动开，没绑就保持关闭——页面服务不会被它们拖住。</div>
+        <div class="gs-ops">
+          <button class="act" type="button" data-guide-stack="collector">重启采集</button>
+          <button class="act" type="button" data-guide-stack="pusher">重启推送</button>
+          <button class="act" type="button" data-guide-go="tasks">看进程页</button>
+        </div>
+      </li>
+    </ol>
+    <div class="guide-foot">
+      <span class="hint" id="guideHint">绑定状态每隔几秒自动刷新</span>
+      <span class="sp"></span>
+      <button class="act" type="button" id="guideRefresh">刷新状态</button>
+      <button class="primary" type="button" id="guideOk">知道了</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<div class="modal" id="wkProgModal">
+  <div class="mbox">
+    <h4 id="wkPTitle">常驻联动节目</h4>
+    <div class="mrow">
+      <label>节目名<input id="wkPName" placeholder="屋里吃饭"></label>
+      <label>固定星期<select id="wkPDay"><option value="">不定</option></select></label>
+    </div>
+    <div class="mrow">
+      <label>别名<input id="wkPAliases" placeholder="多个用逗号分隔：屋里说话, Potluck"></label>
+      <label>固定时间<input id="wkPTime" placeholder="19:00，可留空"></label>
+    </div>
+    <div class="mrow"><label>常驻主持<select id="wkPHosts" multiple size="5"
+        title="按住 Ctrl / ⌘ 多选：动态里没点名时，这些主持会被补进同一场"></select></label></div>
+    <div class="mrow"><label>备注<input id="wkPNote" placeholder="可选，给自己看"></label></div>
+    <div class="mops">
+      <button class="act" id="wkPCancel">取消</button>
+      <button class="act danger" id="wkPDel">删除</button>
+      <button class="primary" id="wkPSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="wkModal">
+  <div class="mbox">
+    <h4 id="wkMTitle">编辑日程</h4>
+    <div class="mrow">
+      <label>主播<select id="wkMUid"></select></label>
+      <label>星期<select id="wkMDay"></select></label>
+    </div>
+    <div class="mrow">
+      <label>时间<input id="wkMTime" placeholder="9:00 / 9~12 / 留空"></label>
+      <label>内容<input id="wkMText" placeholder="影之刃"></label>
+    </div>
+    <div class="mrow"><label>联动对象<select id="wkMCollab" multiple size="4"
+        title="按住 Ctrl / ⌘ 多选：选中的主播会并成同一条日程（自动联动标记为「联动」）"></select></label></div>
+    <div class="mrow"><label>备注<input id="wkMNote" placeholder="可选，给自己看"></label></div>
+    <div class="mops">
+      <button class="act" id="wkMCancel">取消</button>
+      <button class="act danger" id="wkMDel">删除</button>
+      <button class="primary" id="wkMSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var state = { tab: 'overview', subjects: [], groups: [], evUid: 0, timer: null, sel: {}, collapsed: {}, palette: null, grpLast: '__all', weeklyOn: false, pushAt: '' };
+try {
+  (JSON.parse(localStorage.getItem('bili_grp_collapsed') || '[]') || []).forEach(function (k) {
+    state.collapsed[k] = 1;
+  });
+} catch (e) {}
+
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
+  });
+}
+function ts(t) {
+  if (!t) return '—';
+  var d = new Date(t * 1000), p = function (n) { return n < 10 ? '0' + n : '' + n; };
+  return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+function ago(t) {
+  if (!t) return '—';
+  var s = Math.max(0, Math.round(Date.now() / 1000 - t));
+  if (s < 60) return s + ' 秒前';
+  if (s < 3600) return Math.round(s / 60) + ' 分钟前';
+  if (s < 86400) return Math.round(s / 3600) + ' 小时前';
+  return Math.round(s / 86400) + ' 天前';
+}
+function bytes(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1048576).toFixed(2) + ' MB';
+}
+function toast(msg, err) {
+  var el = $('toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(function () { el.className = 'toast'; }, 2600);
+}
+function api(path, opt) {
+  return fetch(path, opt).then(function (r) {
+    return r.json().then(function (j) {
+      if (!r.ok || j.ok === false) throw new Error(j.error || ('HTTP ' + r.status));
+      return j;
+    });
+  });
+}
+
+/* ---------- 日程功能总开关（默认关闭；监控名单添加框输入 weekly_open / weekly_close） ---------- */
+var TASK_HINT_ON = '监控台主进程只服务页面；采集（直播 / 动态）在「采集进程」里跑，派发 / 缓存 / 收件 / 清理通知在「推送进程」里跑，两者由监控台按绑定状态自动开关。周表扫描、预约刷新、日程交接、每日推送在「日程进程组」里跑。开关改完下一轮生效，进程本身与守护进程只读。';
+var TASK_HINT_OFF = '监控台主进程只服务页面；采集（直播 / 动态）在「采集进程」里跑，派发 / 缓存 / 收件 / 清理通知在「推送进程」里跑，两者由监控台按绑定状态自动开关。日程功能未开启。';
+function applyFeature() {
+  var on = !!state.weeklyOn;
+  var btn = $('navWeekly');
+  if (btn) btn.style.display = on ? '' : 'none';
+  var sec = $('tab-weekly');
+  if (sec) sec.style.display = on ? '' : 'none';
+  var th = $('thWeekly');
+  if (th) th.style.display = on ? '' : 'none';
+  var hint = $('taskHint');
+  if (hint) hint.textContent = on ? TASK_HINT_ON : TASK_HINT_OFF;
+  if (!on && state.tab === 'weekly') switchTab('subjects');
+}
+function loadFeature() {
+  return api('/api/weekly/feature').then(function (f) {
+    state.weeklyOn = !!f.enabled;
+    state.pushAt = (f.push_at == null ? '08:10' : f.push_at);
+    var pe = $('wkPushAt');
+    if (pe && state.pushAt) pe.value = state.pushAt;
+    applyFeature();
+  }).catch(function () {
+    state.weeklyOn = false;
+    applyFeature();
+  });
+}
+function setWeeklyFeature(on) {
+  api('/api/weekly/feature', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: !!on }) })
+    .then(function (r) {
+      state.weeklyOn = (r.enabled == null ? !!on : !!r.enabled);
+      $('addInput').value = '';
+      $('cands').innerHTML = '';
+      applyFeature();
+      toast(r.note || (on ? '已开启日程功能' : '已关闭日程功能'));
+      loadSubjects();
+      loadTasks();
+    }).catch(function (e) { toast('日程开关失败：' + e.message, true); });
+}
+function savePushAt() {
+  var el = $('wkPushAt');
+  var v = (el && el.value) || '';
+  var m = /^(\d{1,2}):(\d{2})$/.exec(v);
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) {
+    toast('推送时间要写成 H:mm，例如 8:10 或 20:30', true);
+    return;
+  }
+  api('/api/weekly/feature', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ push_at: v }) })
+    .then(function (r) {
+      state.pushAt = r.push_at || v;
+      if (el) el.value = state.pushAt;
+      toast(r.note || ('已保存推送时间：每天 ' + state.pushAt));
+      loadTasks();
+    }).catch(function (e) { toast('保存推送时间失败：' + e.message, true); });
+}
+
+/* ---------- 全局总开关 ---------- */
+var gstate = { mode: 'full', modes: [], pending: 0 };
+function loadGlobal() {
+  return api('/api/global').then(function (g) {
+    gstate = g;
+    $('gswitch').innerHTML = g.modes.map(function (m) {
+      var on = m.value === g.mode;
+      return '<button class="' + (on ? 'on m-' + m.value : '') + '" title="' + esc(m.hint) +
+        '" onclick="setMode(\'' + m.value + '\')">' + esc(m.label) + '</button>';
+    }).join('');
+    var b = $('banner'), txt = '', extra = '';
+    if (g.mode === 'collect') {
+      txt = '总开关：只采集 —— 事件照常入库，但不会发 QQ 消息';
+    } else if (g.mode === 'off') {
+      txt = '总开关：全停 —— 不采集也不推送（进程仍在，守护不会重启）';
+    }
+    if (txt) {
+      if (g.pending) extra = '<button class="act" onclick="flushPending()">丢弃积压待发 ' + g.pending + ' 条</button>';
+      b.className = 'banner show' + (g.mode === 'off' ? ' off' : '');
+      b.innerHTML = '<span class="dot" style="background:currentColor"></span>' + esc(txt) + extra;
+    } else {
+      b.className = 'banner';
+      b.innerHTML = '';
+    }
+  }).catch(function () { /* 总开关读失败不打断页面 */ });
+}
+function setMode(mode) {
+  if (mode === gstate.mode) return;
+  /* A10（2026-11-14）：全停是最容易误点的开关（按钮就在顶栏），而且点了不会自动恢复。
+     与「丢弃积压」「停止主进程」保持一致，先问一句。 */
+  if (mode === 'off' && !confirm('「全停」会立刻停止采集与推送：不再监控、也不发消息。\n进程还在、守护不会重启，恢复需要手动切回来。确定全停？')) return;
+  api('/api/global', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: mode })
+  }).then(function (g) {
+    toast('总开关已切到：' + g.label);
+    loadGlobal();
+    refresh();
+  }).catch(function (e) { toast(e.message, true); });
+}
+function flushPending() {
+  if (!confirm('把当前所有待发消息标记为失败（不再发送）？')) return;
+  api('/api/deliveries/flush', { method: 'POST' }).then(function (r) {
+    toast('已丢弃 ' + r.dropped + ' 条积压待发');
+    loadGlobal();
+  }).catch(function (e) { toast(e.message, true); });
+}
+
+/* ---------- QQ 机器人 ---------- */
+var qq = { status: null, timer: null };
+function qqStageText(st) {
+  var m = { idle: '未开始', connecting: '正在连 QQ 网关…', waiting: '已连上，等你发消息',
+            done: '监听结束', error: '出错', stopped: '已停止' };
+  if (st.stage === 'done' && !st.events) {
+    return st.user_openid ? '监听结束（这次没收到新消息，沿用已保存的 openid）' : '监听结束（没收到消息）';
+  }
+  return m[st.stage] || st.stage || '未知';
+}
+function qqRenderListener(st) {
+  var box = $('qqListenBox');
+  qq.$last = st || null;
+  var running = !!(st && st.running);
+  $('qqListen').disabled = running;
+  $('qqStop').disabled = !running;
+  if (!st || st.stage === 'idle') { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  var lines = ['<div><b>' + esc(qqStageText(st)) + '</b>' +
+    (running && st.elapsed != null ? '　已等 ' + st.elapsed + ' 秒' + (st.timeout ? ' / 上限 ' + Math.round(st.timeout) + ' 秒' : '') : '') +
+    (st.events ? '　收到 ' + st.events + ' 条' : '') + '</div>'];
+  if (st.bot) lines.push('<div class="hint">机器人：' + esc(st.bot) + '</div>');
+  if (st.gateway) lines.push('<div class="hint">网关：' + esc(st.gateway) + '</div>');
+  if (st.last_event) {
+    var e = st.last_event;
+    lines.push('<div>最近一条：' + esc(e.where || e.kind || '') + '　内容「' +
+      esc(String(e.content || '').slice(0, 40)) + '」</div>');
+  }
+  if (st.user_openid) lines.push('<div>私聊 openid：<span class="num">' + esc(st.user_openid) + '</span></div>');
+  if (st.group_openid) lines.push('<div>群 openid：<span class="num">' + esc(st.group_openid) + '</span></div>');
+  if (st.error) lines.push('<div style="color:var(--red)">' + esc(st.error) + '</div>');
+  if (st.hint) lines.push('<div class="hint">' + esc(st.hint) + '</div>');
+  box.innerHTML = lines.join('');
+}
+function loadQQ() {
+  return api('/api/qq/status').then(function (s) {
+    qq.status = s;
+    var cls = s.ready ? 'st-sent' : (s.configured ? 'st-pending' : 'st-off');
+    var label = s.ready ? '已接入' : (s.configured ? '凭据已存，缺 openid' : '未配置');
+    $('qqState').innerHTML = '<span class="dot" style="background:currentColor"></span>' + label +
+      (s.configured ? '<span class="hint">　AppID ' + esc(s.app_id) + '</span>' : '');
+    $('qqState').className = 'st ' + cls;
+    $('qqAppId').placeholder = s.configured ? ('已保存 ' + s.app_id + '，留空不修改') : '例如 1028xxxxxx';
+    var idCls = s.user_openid ? 'st-sent' : (s.configured ? 'st-pending' : 'st-off');
+    $('qqIdState').className = 'st ' + idCls;
+    $('qqIdState').innerHTML = '<span class="dot" style="background:currentColor"></span>' +
+      (s.user_openid ? '已绑定' : '未绑定');
+    if (!$('qqUserId').value && document.activeElement !== $('qqUserId') && s.user_openid) $('qqUserId').value = s.user_openid;
+    if (!$('qqGroupId').value && document.activeElement !== $('qqGroupId') && s.group_openid) $('qqGroupId').value = s.group_openid;
+    $('qqIdFile').textContent = s.ids_file;
+    qqRenderListener(s.listener);
+  }).catch(function (e) { toast('机器人状态读取失败：' + e.message, true); });
+}
+function saveQqCreds() {
+  var body = { app_id: $('qqAppId').value.trim(), secret: $('qqSecret').value.trim() };
+  if (!body.app_id && !body.secret) { toast('先填 AppID / AppSecret', true); return; }
+  api('/api/qq/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) {
+      $('qqSecret').value = '';
+      $('qqAppId').value = '';
+      var v = r.verify || {};
+      toast(v.ok ? '凭据已保存，校验通过（机器人：' + ((v.bot || {}).username || '已连通') + '）'
+                 : '已保存，但校验没通过：' + (v.message || '未知原因'), !v.ok);
+      loadQQ();
+    }).catch(function (e) { toast('保存失败：' + e.message, true); });
+}
+function qqVerifyCreds() {
+  api('/api/qq/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ app_id: $('qqAppId').value.trim(), secret: $('qqSecret').value.trim() }) })
+    .then(function (r) { toast(r.message || '校验通过'); })
+    .catch(function (e) { toast('校验失败：' + e.message, true); });
+}
+function qqListenTick(delay) {
+  clearTimeout(qq.timer);
+  qq.timer = setTimeout(function () {
+    api('/api/qq/listen').then(function (st) {
+      qqRenderListener(st);
+      if (st.running) { qqListenTick(1000); return; }
+      if (st.stage === 'done') {
+        if (st.events) toast('openid 已捕获，记得重启采集进程');
+        else if (st.user_openid) toast('这次没收到新消息，沿用已保存的 openid');
+        else toast('监听结束，但没收到消息', true);
+        loadQQ();
+      } else if (st.stage === 'error') {
+        toast(st.error || '监听失败', true);
+        loadQQ();
+      }
+    }).catch(function (e) { toast('监听状态读取失败：' + e.message, true); });
+  }, delay == null ? 1000 : delay);
+}
+function qqListenStart() {
+  api('/api/qq/listen', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ timeout: 180 }) })
+    .then(function (st) {
+      if (st.already) { toast('已经有监听了：先停止再重开', true); }
+      else { toast('监听已启动：现在去 QQ 私聊机器人发一句话'); }
+      qqRenderListener(st);
+      qqListenTick(1000);
+    }).catch(function (e) { toast('启动监听失败：' + e.message, true); });
+}
+function qqListenStop() {
+  clearTimeout(qq.timer);
+  api('/api/qq/listen/stop', { method: 'POST' })
+    .then(function (st) { toast(st.message || '已停止'); qqRenderListener(st); loadQQ(); })
+    .catch(function (e) { toast('停止失败：' + e.message, true); });
+}
+function qqSaveIds() {
+  var body = { user_openid: $('qqUserId').value.trim(), group_openid: $('qqGroupId').value.trim() };
+  if (!body.user_openid && !body.group_openid) { toast('没有可保存的 openid', true); return; }
+  api('/api/qq/ids', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) { toast(r.message || '已保存'); loadQQ(); })
+    .catch(function (e) { toast('保存失败：' + e.message, true); });
+}
+function qqClearIds() {
+  if (!confirm('清除已保存的 openid？之后的推送会因为找不到目标而失败。')) return;
+  api('/api/qq/ids', { method: 'DELETE' })
+    .then(function (r) { $('qqUserId').value = ''; $('qqGroupId').value = ''; toast(r.message || '已清除'); loadQQ(); })
+    .catch(function (e) { toast('清除失败：' + e.message, true); });
+}
+function qqTestSend() {
+  var body = { kind: $('qqTestKind').value, content: $('qqTestText').value.trim() };
+  api('/api/qq/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    .then(function (r) { toast(r.message || '已发送'); })
+    .catch(function (e) { toast('发送失败：' + e.message, true); });
+}
+
+/* ---------- 概览 ---------- */
+/* ---------- B 站登录态 ---------- */
+function loadAuth(force) {
+  return api('/api/bili/auth' + (force ? '?force=1' : '')).then(function (a) {
+    var cls = a.valid ? 'st-sent' : (a.state === 'expired' ? 'st-failed' : 'st-off');
+    var label = !a.configured ? '未配置（匿名取数）' :
+      (a.valid ? '已启用' : (a.state === 'expired' ? '无效 / 已过期' : '暂未确认'));
+    $('authState').innerHTML =
+      '<span class="st ' + cls + '"><span class="dot" style="background:currentColor"></span>' + label + '</span>' +
+      (a.configured ? '<span class="num" style="font-size:12px;color:var(--dim)">' + esc(a.masked) + '</span>' : '') +
+      (a.valid ? '<span style="font-size:12.5px">账号 ' + esc(a.uname) + '（mid ' + a.mid + '）</span>' : '') +
+      '<span style="font-size:12px;color:var(--dim);flex-basis:100%">' + esc(a.message || '') + '</span>';
+    $('authHint').textContent = a.configured
+      ? '登录态只在采集侧使用：动态取数更稳（实测空响应 0%）；扫码或粘贴后都要重启才生效'
+      : '未配置也能跑，但动态多半是空响应；点「扫码登录」或用手机扫码最省事，之后重启生效';
+  }).catch(function (e) { toast('登录态读取失败：' + e.message, true); });
+}
+function saveAuth() {
+  var v = $('sessInput').value.trim();
+  if (!v) { toast('先粘贴 SESSDATA', true); return; }
+  if (v.length < 20) { toast('SESSDATA 太短，不像有效值', true); return; }
+  var btn = $('sessSave');
+  btn.disabled = true;
+  btn.textContent = '校验中…';
+  api('/api/bili/auth', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessdata: v })
+  }).then(function (r) {
+    $('sessInput').value = '';
+    toast('已保存：' + (r.uname || '') + '（' + r.masked + '），点「重启采集进程」生效');
+    loadAuth(true);
+  }).catch(function (e) { toast(e.message, true); })
+    .then(function () { btn.disabled = false; btn.textContent = '保存并校验'; });
+}
+function clearAuth() {
+  if (!confirm('清除 SESSDATA？清除后重启会变回匿名取数（动态容易空响应）')) return;
+  api('/api/bili/auth', { method: 'DELETE' }).then(function () {
+    toast('已清除，点「重启采集进程」生效');
+    loadAuth(true);
+  }).catch(function (e) { toast(e.message, true); });
+}
+function restartService() {
+  if (!confirm('重启采集进程？约 3~6 秒，期间不采集（事件不会丢，重启后补基线）')) return;
+  api('/api/service/restart', { method: 'POST' }).then(function (r) {
+    toast(r.message || '已通知守护重启');
+    setTimeout(function () { refresh(); loadAuth(true); }, 8000);
+  }).catch(function (e) { toast(e.message, true); });
+}
+/* 扫码登录：B 站把 SESSDATA 发给采集进程自己，与浏览器那次登录互不相干 */
+var qr = { key: '', timer: null };
+function qrStart() {
+  qrStop();
+  var btn = $('qrStart');
+  btn.disabled = true;
+  btn.textContent = '申请二维码…';
+  api('/api/bili/qr/new', { method: 'POST' }).then(function (r) {
+    qr.key = r.qrcode_key;
+    $('qrImg').innerHTML = r.svg;
+    $('qrBox').style.display = 'block';
+    $('qrState').textContent = '等待扫码…（3 分钟内有效）';
+    btn.textContent = '重新申请二维码';
+    qr.timer = setInterval(qrPoll, 2000);
+    qrPoll();
+  }).catch(function (e) {
+    toast('申请二维码失败：' + e.message, true);
+    qrStop();
+  });
+}
+function qrPoll() {
+  if (!qr.key) return;
+  var key = qr.key;
+  api('/api/bili/qr/poll?key=' + encodeURIComponent(key)).then(function (r) {
+    if (qr.key !== key) return;                 /* 已经取消或换了新码，丢弃旧结果 */
+    if (r.status === 'waiting') return;
+    if (r.status === 'scanned') {
+      $('qrState').textContent = '已扫码，请在手机上点「确认登录」';
+      return;
+    }
+    if (r.status === 'expired') {
+      qrStop();
+      $('qrBox').style.display = 'none';
+      toast('二维码已失效，重新点「扫码登录」', true);
+      return;
+    }
+    qrStop();
+    $('qrBox').style.display = 'none';
+    if (r.status === 'success') {
+      toast(r.message || ('扫码成功：' + (r.uname || '') + '，点「重启采集进程」生效'));
+      loadAuth(true);
+      return;
+    }
+    toast(r.message || '扫码失败', true);
+  }).catch(function (e) {
+    qrStop();
+    toast('扫码状态查询失败：' + e.message, true);
+  });
+}
+function qrStop() {
+  clearInterval(qr.timer);
+  qr.timer = null;
+  qr.key = '';
+  var btn = $('qrStart');
+  btn.disabled = false;
+  btn.textContent = '扫码登录（推荐，不依赖浏览器）';
+}
+/* ---------- 动态采集方式（关注流 / 逐人轮询） ---------- */
+var feedState = null;
+/* 下拉框被用户改动过但还没保存：定时刷新不能再拿服务端值覆盖它。
+   这只是一次性提示 + 防覆盖，不自动保存——没点「切换」就不改实际采集方式。 */
+var feedModeDirty = false;
+function feedAgo(s) {
+  if (s === undefined || s === null || s < 0) return '还没跑过';
+  if (s < 90) return s + ' 秒前';
+  if (s < 5400) return Math.round(s / 60) + ' 分钟前';
+  if (s < 172800) return Math.round(s / 3600) + ' 小时前';
+  return Math.round(s / 86400) + ' 天前';
+}
+function loadFeed() {
+  return api('/api/feed/status').then(function (f) {
+    feedState = f;
+    var effOk = f.mode_effective === 'feed';
+    if (!feedModeDirty) {
+      $('feedMode').value = (f.mode === 'feed' || f.mode === 'per_user') ? f.mode : 'auto';
+    }
+    $('feedBadge').className = 'st ' + (effOk ? 'st-sent' : 'st-pending');
+    $('feedBadge').innerHTML = '<span class="dot" style="background:currentColor"></span>' +
+      (effOk ? '关注流' : '逐人轮询') + (f.mode === 'auto' ? '（自动判断）' : '');
+    var fd = f.feed, sw = f.sweep, fs = f.follow_sync, c = f.creds, rows = [];
+    if (effOk) {
+      rows.push('最近一轮：' + (fd.last_at || '还没跑过') + '　' + feedAgo(fd.ago_s) +
+        '　共 ' + fd.rounds + ' 轮' + (fd.errors ? '，失败 ' + fd.errors + ' 次' : ''));
+      rows.push('上一轮取流：' + fd.pages + ' 页 / ' + fd.entries + ' 条（名单内 ' + fd.matched + ' 条' +
+        (fd.ignored ? '，名单外忽略 ' + fd.ignored + ' 条' : '') + '）' +
+        '　' + fd.ms + ' ms / ' + fd.kb + ' KB' + (fd.risk ? '　risk=' + fd.risk : ''));
+      rows.push('逐人补漏：' + (sw.last_at || '还没跑过') + '　' + feedAgo(sw.ago_s) +
+        '　共 ' + sw.runs + ' 次，累计补到并推送 ' + sw.missing + ' 条');
+    }
+    rows.push('关注数 ' + (fs.following || 0) + '　名单里还没关注的 ' + (fs.planned || 0) +
+      '　' + (fs.last_at ? '同步于 ' + fs.last_at : '还没同步过'));
+    $('feedBody').innerHTML = rows.map(function (t) { return '<div>' + esc(t) + '</div>'; }).join('') +
+      (fd.last_error ? '<div style="color:var(--red)">最近错误：' + esc(fd.last_error) + '</div>' : '');
+    var hint = [];
+    if (f.mode === 'auto') {
+      hint.push('配置为「自动」：' + (effOk ? '登录凭据齐全，实际走关注流' : '缺关注流凭据，实际逐人轮询'));
+    } else if (f.mode === 'feed' && !effOk) {
+      hint.push('配置为「关注流」，但凭据不足，实际按逐人轮询跑' + (c.why ? '（' + c.why + '）' : ''));
+    }
+    if (!effOk) {
+      hint.push(c.why || '缺少关注流凭据');
+      hint.push('去「机器人」页扫码登录，或运行 python scripts/setup_wizard.py --bili（会同时拿到 SESSDATA 与 bili_jct）');
+    } else if (fs.reason) {
+      hint.push('关注同步：' + fs.reason);
+    }
+    $('feedHint').textContent = hint.join(' · ');
+  }).catch(function () { /* 采集指标读不到不打断概览 */ });
+}
+function feedAction(action, label) {
+  api('/api/feed/action', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: action })
+  }).then(function (r) {
+    toast(r.note || ('已请求' + label));
+    setTimeout(loadFeed, 3000);
+    setTimeout(loadFeed, 20000);
+  }).catch(function (e) { toast('请求失败：' + e.message, true); });
+}
+function feedModeChanged() {
+  feedModeDirty = true;
+  $('feedModeSave').disabled = false;
+  $('feedModeDirtyHint').style.display = 'inline';
+}
+function feedSaveMode() {
+  var mode = $('feedMode').value;
+  api('/api/feed/mode', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: mode })
+  }).then(function () {
+    feedModeDirty = false;
+    $('feedModeSave').disabled = true;
+    $('feedModeDirtyHint').style.display = 'none';
+    toast('已改为「' + (mode === 'feed' ? '关注流' : (mode === 'per_user' ? '逐人轮询' : '自动判断')) +
+      '」，重启采集进程后生效');
+    loadFeed();
+  }).catch(function (e) { toast('保存失败：' + e.message, true); });
+}
+/* 右上角计数：只读 /api/stats，任何页签都在刷 */
+function pill(label, val, cls, key, act) {
+  state.pillPrev = state.pillPrev || {};
+  var prev = state.pillPrev[key];
+  var upd = (prev !== undefined && prev !== val) ? ' upd' : '';
+  state.pillPrev[key] = val;
+  /* A8（2026-11-14）：计数徽标要能下钻 —— 看到「失败 1」能直接跳到对应列表 */
+  var click = act ? ' style="cursor:pointer" title="点开查看对应列表" onclick="' + act + '"' : '';
+  return '<span class="pill ' + (cls || '') + upd + '"' + click + '>' + label +
+    ' <b>' + val + '</b></span>';
+}
+function renderPills(s, d) {
+  $('pills').innerHTML =
+    pill('主播', s.total, '', 'total') +
+    pill('直播中', s.living, 'live', 'living') +
+    pill('已发', d.sent, 'ok', 'sent', "gotoDeliveries('sent')") +
+    pill('待发', d.pending, d.pending ? 'warn' : '', 'pending', "gotoDeliveries('pending')") +
+    pill('失败', d.failed, d.failed ? 'bad' : '', 'failed', "gotoDeliveries('failed')");
+}
+function loadStats() {
+  return api('/api/stats').then(function (o) {
+    renderPills(o.subjects, o.deliveries);
+  }).catch(function () { /* 计数失败不打断页面，下一个 3 秒再试 */ });
+}
+function loadOverview() {
+  api('/api/overview').then(function (o) {
+    var d = o.deliveries, s = o.subjects;
+    $('cards').innerHTML = [
+      card('监控主播', s.total, '全部参与轮询'),
+      card('正在直播', s.living, s.living ? '有 ' + s.living + ' 人在播' : '当前无人开播', s.living ? 'live' : ''),
+      card('事件总数', o.events.total, o.events.last_created_at ? '最后一条 ' + ago(o.events.last_created_at) : '还没有事件'),
+      card('待发', d.pending, '已发 ' + d.sent + ' / 失败 ' + d.failed, d.pending ? 'warn' : ''),
+      card('数据库', bytes(o.db.bytes), o.db.path.split(/[\\/]/).pop()),
+      card('管理台', o.uptime_s ? Math.round(o.uptime_s / 60) + ' 分钟' : '<1 分钟', '仅本机 127.0.0.1')
+    ].join('');
+    renderPills(s, d);
+    $('targets').innerHTML = o.targets.length ? o.targets.map(function (t) {
+      return '<tr><td>' + esc(t.display_name || t.target_id) + '</td><td class="num">' + esc(t.channel_type) +
+        '</td><td class="num">' + esc(t.kind) + '</td><td class="num" style="font-size:11.5px" title="' + esc(t.external_id) + '">' +
+        esc(t.external_id.slice(0, 18)) + '…</td><td class="st ' + (t.enabled ? 'st-sent' : 'st-off') + '">' +
+        (t.enabled ? '启用' : '停用') + '</td><td><button class="act" onclick="toggleTarget(' + t.target_id + ',' +
+        (t.enabled ? 'false' : 'true') + ')">' + (t.enabled ? '停用' : '启用') + '</button></td></tr>';
+    }).join('') : '<tr><td colspan="6" class="empty">还没有推送目标：先到「机器人」页把 QQ 机器人的 openid 绑上，' +
+      '绑好并重启采集进程后这里会自动出现。<div style="margin-top:10px">' +
+      '<button class="primary" onclick="gotoQQBind()">去机器人页绑定 openid</button></div></td></tr>';
+    loadAuth(false);
+    loadFeed();
+  }).catch(function (e) { toast('概览加载失败：' + e.message, true); });
+}
+function card(k, v, s, cls) {
+  return '<div class="card"><div class="k">' + k + '</div><div class="v"' +
+    (cls === 'live' ? ' style="color:var(--pink)"' : cls === 'warn' ? ' style="color:var(--amber)"' : '') +
+    '>' + v + '</div><div class="s">' + (s || '') + '</div></div>';
+}
+/* A8（2026-11-14）：顶栏「已发 / 待发 / 失败」徽标下钻。
+   先设筛选再切页签：switchTab 内部会 refresh() 并调用 loadDeliveries()，用新筛选拉一次；
+   这里再补一次只会重复请求。 */
+function gotoDeliveries(status) {
+  $('dlFilter').value = status || '';
+  switchTab('deliveries');
+}
+/* 概览没有推送目标时，一键送到机器人页的「绑定推送目标」卡片。 */
+function gotoQQBind() {
+  switchTab('qq');
+  setTimeout(function () {
+    var el = $('qqBindCard');
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, 160);
+}
+function toggleTarget(id, on) {
+  if (!on && !confirm('停用后这个目标不再收到任何推送消息（历史投递不受影响）。确定停用？')) return;
+  api('/api/targets/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled: on }) })
+    .then(function () { toast(on ? '目标已启用' : '目标已停用'); loadOverview(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+/* ---------- 名单 ---------- */
+function liveLabel(st) {
+  if (st === 1) return '<span class="st st-on"><span class="dot" style="background:var(--pink)"></span>直播中</span>';
+  if (st === 2) return '<span class="st st-off">轮播（按未开播）</span>';
+  if (st === 0) return '<span class="st st-off">未开播</span>';
+  return '<span class="st st-off">—</span>';
+}
+function grpLabel(name, color) {
+  if (!name) return '<span class="grp none">未分组</span>';
+  var st = color ? ' style="border-color:' + esc(color) + ';color:' + esc(color) + '"' : '';
+  return '<span class="grp"' + st + '>' + esc(name) + '</span>';
+}
+function grpFilterValue() {
+  var v = $('grpFilter').value;
+  return v === '__all' ? null : v;
+}
+function visibleSubjects() {
+  var f = grpFilterValue();
+  return (state.subjects || []).filter(function (s) { return f === null || (s.group || '') === f; });
+}
+function selUids() { return Object.keys(state.sel).map(Number); }
+function renderGroupOptions(groups) {
+  var f = $('grpFilter'), cur = f.value || '__all';
+  var noneG = null, i0;
+  for (i0 = 0; i0 < groups.length; i0++) if (!groups[i0].name) { noneG = groups[i0]; break; }
+  var hasNone = !!(noneG && (noneG.total || 0) > 0);
+  f.innerHTML = '<option value="__all">全部分组</option>' +
+    groups.filter(function (g) { return g.name; }).map(function (g) {
+      return '<option value="' + esc(g.name) + '">' + esc(g.name) + '（' + g.total + '）</option>';
+    }).join('') +
+    (hasNone ? '<option value="">未分组（' + noneG.total + '）</option>' : '') +
+    '<option value="__newg">＋ 新建分组…</option>';
+  var has = false, i;
+  for (i = 0; i < f.options.length; i++) if (f.options[i].value === cur) has = true;
+  f.value = has ? cur : '__all';
+  state.grpLast = f.value;
+  var mv = $('grpMove'), mcur = mv.value;
+  mv.innerHTML = '<option value="">未分组</option>' + groups.filter(function (g) { return g.name; })
+    .map(function (g) { return '<option value="' + esc(g.name) + '">' + esc(g.name) + '</option>'; }).join('') +
+    '<option value="__new__">＋ 新建分组…</option>';
+  var has2 = false;
+  for (i = 0; i < mv.options.length; i++) if (mv.options[i].value === mcur) has2 = true;
+  mv.value = has2 ? mcur : '';
+}
+function refreshSubjectBar() {
+  var n = selUids().length;
+  $('selCount').textContent = n;
+  $('batchbar').classList.toggle('show', n > 0);
+  var f = grpFilterValue(), mgr = !!(f !== null && f !== '');
+  $('grpRename').style.display = mgr ? '' : 'none';
+  $('grpDelete').style.display = mgr ? '' : 'none';
+  var rows = visibleSubjects();
+  var hid = rows.filter(function (s) { return state.sel[s.uid] && state.collapsed[grpKey(s)]; }).length;
+  $('grpHint').textContent = (f === null ? '共 ' + rows.length + ' 个主播'
+    : (f === '' ? '未分组 ' : '「' + f + '」') + rows.length + ' 个') +
+    (n ? ' · 已选 ' + n + (hid ? '（含已折叠 ' + hid + ' 个）' : '') : '');
+}
+/* ---------- 分组归类与折叠（2026-11-06） ---------- */
+function grpKey(s) { return (s && s.group) || ''; }
+function grpName(n) { return n ? esc(n) : '未分组'; }
+/* 常用标签色（深色底上都够亮，2026-11-06） */
+var GROUP_COLORS = ['#f472b6', '#60a5fa', '#4ade80', '#fbbf24', '#a78bfa',
+                    '#f87171', '#22d3ee', '#94a3b8', '#fb923c', '#2dd4bf'];
+function groupColor(n) {
+  var g = (state.groups || []).filter(function (x) { return (x.name || '') === n; })[0];
+  return (g && g.color) || '';
+}
+function paletteHtml(name, cur) {
+  if (!name || state.palette !== name) return '';
+  var chips = GROUP_COLORS.map(function (c) {
+    return '<span class="chip' + (c === cur ? ' on' : '') + '" data-g="' + esc(name) + '" data-c="' + c + '"' +
+      ' style="background:' + c + '" title="' + c + '"' +
+      ' onclick="event.stopPropagation();pickColor(this.dataset.g,this.dataset.c)"></span>';
+  }).join('');
+  return '<span class="gpal" onclick="event.stopPropagation()">' + chips +
+    '<span class="chip none" data-g="' + esc(name) + '" data-c="" title="恢复默认色"' +
+    ' onclick="event.stopPropagation();pickColor(this.dataset.g,this.dataset.c)">×</span></span>';
+}
+function togglePalette(name) {
+  state.palette = (state.palette === name) ? null : name;
+  renderSubjects();
+}
+function pickColor(name, color) {
+  api('/api/groups/color', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, color: color }) })
+    .then(function (r) { state.palette = null; toast(r.note || '已设置'); loadSubjects(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function persistCollapsed() {
+  var keys = Object.keys(state.collapsed).filter(function (k) { return state.collapsed[k]; });
+  try { localStorage.setItem('bili_grp_collapsed', JSON.stringify(keys)); } catch (e) {}
+}
+/* 把名单按分组切段：API 里的分组顺序优先（含 0 人空组），库里有但注册表漏了的补在后面 */
+function groupBuckets(subs, groups, filter, collapsed) {
+  var names = [], seen = {};
+  (groups || []).forEach(function (g) {
+    var n = g.name || '';
+    if (!seen[n]) { seen[n] = 1; names.push(n); }
+  });
+  subs.forEach(function (s) {
+    var n = grpKey(s);
+    if (!seen[n]) { seen[n] = 1; names.push(n); }
+  });
+  if (filter !== null) names = names.filter(function (n) { return n === filter; });
+  var buckets = names.map(function (n) {
+    var rows = subs.filter(function (s) { return grpKey(s) === n; });
+    return {
+      name: n, rows: rows, total: rows.length, collapsed: !!collapsed[n],
+      living: rows.filter(function (s) { return s.live_status === 1; }).length
+    };
+  });
+  /* 未分组：没有主播时不画这一段，有则固定排最后 */
+  buckets = buckets.filter(function (b) { return b.name || b.rows.length; });
+  return buckets.filter(function (b) { return b.name; })
+    .concat(buckets.filter(function (b) { return !b.name; }));
+}
+function rowHtml(s) {
+  return '<tr><td><input type="checkbox" data-uid="' + s.uid + '"' +
+    (state.sel[s.uid] ? ' checked' : '') + ' onchange="selOne(' + s.uid + ', this.checked)"></td>' +
+    '<td class="num">' + s.uid + '</td><td>' + esc(s.name) + '</td>' +
+    '<td>' + grpLabel(s.group, groupColor(s.group)) + '</td>' +
+    '<td class="num">' + (s.room_id ? '<a href="https://live.bilibili.com/' + s.room_id +
+      '" target="_blank">' + s.room_id + '</a>' : '无') + '</td>' +
+    '<td>' + liveLabel(s.live_status) + '</td>' +
+    '<td class="st ' + (s.baseline_done ? 'st-off' : 'st-pending') + '">' + (s.baseline_done ? '已建' : '待建') + '</td>' +
+    '<td class="pushcell">' + pushChip(s.uid, 'live', s.push_live) + pushChip(s.uid, 'dynamic', s.push_dynamic) + '</td>' +
+    (state.weeklyOn ? '<td class="pushcell">' + weeklyChip(s.uid, s.weekly) + '</td>' : '') +
+    '<td class="num">' + ago(s.last_poll_ts) + '</td>' +
+    '<td><button class="act danger" onclick="removeSubject(' + s.uid + ')">移除</button></td></tr>';
+}
+function renderSubjects() {
+  var subs = visibleSubjects();
+  var bs = groupBuckets(subs, state.groups, grpFilterValue(), state.collapsed);
+  if (!bs.length) {
+    $('subjects').innerHTML = '<tr><td colspan="' + (state.weeklyOn ? 11 : 10) + '" class="empty">' +
+      (state.subjects.length ? '这个分组下没有主播' : '名单是空的') + '</td></tr>';
+    $('selAll').checked = false;
+    return;
+  }
+  var canDrag = grpFilterValue() === null;          /* 筛到某个组时不做拖排序 */
+  var gselState = {};
+  $('subjects').innerHTML = bs.map(function (b) {
+    var selN = b.rows.filter(function (s) { return !!state.sel[s.uid]; }).length;
+    var color = groupColor(b.name);
+    var allSel = b.rows.length > 0 && selN === b.rows.length;
+    gselState[b.name] = { all: allSel, part: selN > 0 && !allSel };
+    var head = '<tr class="grprow' + (b.collapsed ? ' collapsed' : '') + '" data-g="' + esc(b.name) + '"' +
+      ' onclick="toggleGrp(this.dataset.g)" title="' + (b.collapsed ? '展开' : '折叠') + '该分组"' +
+      (canDrag && b.name ? ' draggable="true" ondragstart="grpDragStart(event)"' +
+        ' ondragover="grpDragOver(event)" ondragleave="grpDragLeave(event)"' +
+        ' ondrop="grpDrop(event)" ondragend="grpDragEnd(event)"' : '') + '>' +
+      '<td colspan="' + (state.weeklyOn ? 11 : 10) + '"><span class="chev">▾</span>' +
+      (canDrag && b.name ? '<span class="gdrag" onclick="event.stopPropagation()"' +
+        ' title="按住拖动调整分组顺序">⠿</span>' : '') +
+      '<input type="checkbox" class="gsel" data-g="' + esc(b.name) + '"' +
+      (allSel ? ' checked' : '') + (b.rows.length ? '' : ' disabled') +
+      ' onclick="event.stopPropagation()" onchange="selGroup(this.dataset.g, this.checked)"' +
+      ' title="选中「' + grpName(b.name) + '」里的全部 ' + b.total + ' 个主播">' +
+      (b.name ? '<span class="gsw' + (color ? '' : ' none') + '" data-g="' + esc(b.name) + '"' +
+        (color ? ' style="background:' + esc(color) + '"' : '') +
+        ' onclick="event.stopPropagation();togglePalette(this.dataset.g)" title="给这个分组选个标签色"></span>' : '') +
+      '<span class="gname"' + (color ? ' style="color:' + esc(color) + '"' : '') + '>' + grpName(b.name) + '</span>' +
+      '<span class="gnum">' + b.total + ' 个' + (b.living ? ' · 在播 ' + b.living : '') +
+      (b.collapsed && selN ? ' · 已选 ' + selN : '') + '</span>' +
+      paletteHtml(b.name, color) +
+      (b.collapsed ? '<span class="ghid">已折叠，点标题展开</span>' : '') + '</td></tr>';
+    return head + (b.collapsed ? '' : b.rows.map(rowHtml).join(''));
+  }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('#subjects .gsel'), function (el) {
+    var gs = gselState[el.dataset.g || ''];
+    if (!gs) return;
+    el.checked = gs.all;
+    el.indeterminate = !gs.all && gs.part;
+  });
+  var exp = expandedSubjects();
+  $('selAll').checked = exp.length > 0 && exp.every(function (s) { return !!state.sel[s.uid]; });
+}
+/* ---------- 组内全选（2026-11-06） ---------- */
+function selGroup(name, on) {
+  state.subjects.forEach(function (s) {
+    if (grpKey(s) !== name) return;
+    if (on) state.sel[s.uid] = 1; else delete state.sel[s.uid];
+  });
+  renderSubjects();
+  refreshSubjectBar();
+}
+/* ---------- 分组拖拽排序（2026-11-06） ---------- */
+var dragGrp = null;
+function groupOrderNames() {
+  var out = [];
+  (state.groups || []).forEach(function (g) {
+    var n = g.name || '';
+    if (n && out.indexOf(n) < 0) out.push(n);
+  });
+  visibleSubjects().forEach(function (s) {
+    var n = grpKey(s);
+    if (n && out.indexOf(n) < 0) out.push(n);
+  });
+  return out;
+}
+function moveGrpOrder(names, from, to) {           /* 纯函数：拖到目标位置，原位置由后面前移 */
+  var arr = names.slice();
+  if (from < 0 || to < 0 || from >= arr.length || to >= arr.length || from === to) return arr;
+  arr.splice(to, 0, arr.splice(from, 1)[0]);
+  return arr;
+}
+function persistGroupOrder(names) {
+  api('/api/groups/order', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ names: names }) })
+    .then(function (r) { toast(r.note || '分组顺序已保存'); })
+    .catch(function (e) { toast('顺序没保存成功：' + e.message, true); loadSubjects(); });
+}
+function clearDragMarks() {
+  Array.prototype.forEach.call(document.querySelectorAll('#subjects .grprow'), function (r) {
+    r.classList.remove('dragover', 'dragging');
+  });
+}
+function grpDragStart(e) {
+  var n = e.currentTarget.dataset.g || '';
+  if (!n) { e.preventDefault(); return; }
+  dragGrp = n;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', n); } catch (err) {}
+}
+function grpDragOver(e) {
+  if (!dragGrp) return;
+  var t = e.currentTarget.dataset.g || '';
+  if (!t || t === dragGrp) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  Array.prototype.forEach.call(document.querySelectorAll('#subjects .grprow.dragover'), function (r) {
+    r.classList.remove('dragover');
+  });
+  e.currentTarget.classList.add('dragover');
+}
+function grpDragLeave(e) { e.currentTarget.classList.remove('dragover'); }
+function grpDragEnd() { dragGrp = null; clearDragMarks(); }
+function grpDrop(e) {
+  e.preventDefault();
+  var t = e.currentTarget.dataset.g || '';
+  var from = dragGrp, names = groupOrderNames();
+  clearDragMarks();
+  dragGrp = null;
+  if (!from || !t || t === from) return;
+  var fi = names.indexOf(from), ti = names.indexOf(t);
+  if (fi < 0 || ti < 0) return;
+  var next = moveGrpOrder(names, fi, ti);
+  var map = {};
+  (state.groups || []).forEach(function (g) { map[g.name || ''] = g; });
+  state.groups = next.map(function (n) { return map[n] || { name: n, total: 0 }; });
+  if (map['']) state.groups.push(map['']);         /* 未分组固定排最后 */
+  renderGroupOptions(state.groups);
+  renderSubjects();
+  persistGroupOrder(next);
+}
+function toggleGrp(k) {
+  if (state.collapsed[k]) delete state.collapsed[k]; else state.collapsed[k] = 1;
+  persistCollapsed();
+  renderSubjects();
+  refreshSubjectBar();
+}
+function toggleAllGrp(collapse) {
+  var keys = {};
+  (state.groups || []).forEach(function (g) { keys[g.name || ''] = 1; });
+  visibleSubjects().forEach(function (s) { keys[grpKey(s)] = 1; });
+  Object.keys(keys).forEach(function (k) {
+    if (collapse) state.collapsed[k] = 1; else delete state.collapsed[k];
+  });
+  persistCollapsed();
+  renderSubjects();
+  refreshSubjectBar();
+}
+/* 全选只作用于「已展开」的行，避免折叠后误选看不见的主播 */
+function expandedSubjects() {
+  return visibleSubjects().filter(function (s) { return !state.collapsed[grpKey(s)]; });
+}
+
+function loadSubjects() {
+  api('/api/subjects').then(function (o) {
+    state.subjects = o.subjects || [];
+    var ids = {};
+    state.subjects.forEach(function (s) { ids[s.uid] = 1; });
+    Object.keys(state.sel).forEach(function (k) { if (!ids[k]) delete state.sel[k]; });
+    renderGroupOptions(o.groups || []);
+    state.groups = o.groups || [];
+    renderSubjects();
+    var sel = $('evFilter'), cur = state.evUid;
+    sel.innerHTML = '<option value="0">全部主播</option>' + state.subjects.map(function (s) {
+      return '<option value="' + s.uid + '">' + esc(s.name) + '</option>';
+    }).join('');
+    sel.value = String(cur);
+    refreshSubjectBar();
+  }).catch(function (e) { toast('名单加载失败：' + e.message, true); });
+}
+function selOne(uid, on) {
+  if (on) state.sel[uid] = 1; else delete state.sel[uid];
+  var rows = expandedSubjects();
+  $('selAll').checked = rows.length > 0 && rows.every(function (s) { return !!state.sel[s.uid]; });
+  refreshSubjectBar();
+}
+function selAllToggle(on) {
+  expandedSubjects().forEach(function (s) {
+    if (on) state.sel[s.uid] = 1; else delete state.sel[s.uid];
+  });
+  loadSubjects();
+}
+function clearSel() { state.sel = {}; loadSubjects(); }
+function batchSubjects(action, group) {
+  var uids = selUids();
+  if (!uids.length) { toast('先勾选主播', true); return; }
+  if (action === 'remove' && !confirm('从名单移除选中的 ' + uids.length + ' 个主播？（历史事件与已见动态保留）')) return;
+  api('/api/subjects/batch', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uids: uids, action: action, group: group || '' }) })
+    .then(function (r) { toast(r.note || '已完成'); state.sel = {}; loadSubjects(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function batchMove() {
+  var v = $('grpMove').value;
+  if (v !== '__new__') { batchSubjects('group', v); return; }
+  var nv = prompt('新建分组并移入选中的主播\n分组名（最多 24 字）：', '');
+  if (nv === null) return;
+  nv = nv.trim();
+  if (!nv) { toast('分组名不能为空', true); return; }
+  batchSubjects('group', nv);
+}
+function createGroup() {
+  var nv = prompt('新建分组\n分组名（最多 24 字，建成后出现在下拉里）：', '');
+  if (nv === null) return;
+  nv = nv.trim();
+  if (!nv) { toast('分组名不能为空', true); return; }
+  api('/api/groups/create', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: nv }) })
+    .then(function (r) {
+      toast(r.note || '已新建');
+      $('grpFilter').value = r.group;
+      state.grpLast = r.group;
+      loadSubjects();
+    })
+    .catch(function (e) { toast(e.message, true); });
+}
+function renameGroup() {
+  var f = grpFilterValue();
+  if (!f) return;
+  var nv = prompt('重命名分组「' + f + '」\n留空 = 取消分组（号保留在名单里）', f);
+  if (nv === null) return;
+  api('/api/groups/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: f, to: nv.trim() }) })
+    .then(function (r) { toast(r.note); $('grpFilter').value = r.to || '__all'; loadSubjects(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function deleteGroup() {
+  var f = grpFilterValue();
+  if (!f) return;
+  if (!confirm('删除分组「' + f + '」？组内主播回到未分组，不会从名单移除')) return;
+  api('/api/groups/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: f }) })
+    .then(function (r) { toast(r.note); $('grpFilter').value = '__all'; loadSubjects(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+/* 分号推送开关：直播（开播/下播）与动态（含视频/专栏/转发）各一个 */
+function pushChip(uid, kind, on) {
+  var label = kind === 'live' ? '直播' : '动态';
+  return '<span class="pchip' + (on ? ' on' : '') + '" title="' +
+    (on ? '已开启，点击关闭' : '已关闭，点击开启') + label + '通知"' +
+    ' onclick="togglePush(' + uid + ',\'' + kind + '\',' + (on ? 'false' : 'true') + ')">' +
+    label + '</span>';
+}
+function togglePush(uid, kind, on) {
+  var body = { uid: uid };
+  body[kind] = on;
+  api('/api/subjects/flags', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) })
+    .then(function (r) {
+      var nm = kind === 'live' ? '直播' : '动态';
+      toast(nm + '通知已' + (on ? '开启' : '关闭') + (on ? '' : '（状态照常更新，不补推积压）'));
+      loadSubjects();
+    })
+    .catch(function (e) { toast(e.message, true); });
+}
+/* 日程表（周表）监控开关：关掉后 TA 的图文不再进周表候选池，不花识别 token（2026-11-07） */
+function weeklyChip(uid, on) {
+  return '<span class="pchip wk' + (on ? ' on' : '') + '" title="' +
+    (on ? '正在监控 TA 的日程表（周表），点击关闭' : '已关闭日程表监控，点击开启') + '"' +
+    ' onclick="toggleWeekly(' + uid + ',' + (on ? 'false' : 'true') + ')">' +
+    (on ? '监控中' : '已关闭') + '</span>';
+}
+function toggleWeekly(uid, on) {
+  api('/api/subjects/flags', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid: uid, weekly: on }) })
+    .then(function () {
+      toast('日程表监控已' + (on ? '开启' : '关闭') + (on ? '（下一轮起收集）' : '（已在上表的日程保留）'));
+      loadSubjects();
+    })
+    .catch(function (e) { toast(e.message, true); });
+}
+function removeSubject(uid) {
+  if (!confirm('从监控名单移除 UID ' + uid + '？（历史事件保留）')) return;
+  api('/api/subjects/' + uid, { method: 'DELETE' })
+    .then(function () { toast('已移除'); loadSubjects(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function addSubject() {
+  var v = $('addInput').value.trim();
+  if (!v) return;
+  var kw = v.toLowerCase();
+  if (kw === 'weekly_open' || kw === 'weekly_close') {
+    setWeeklyFeature(kw === 'weekly_open');
+    return;
+  }
+  $('cands').innerHTML = '';
+  if (/^\d+$/.test(v)) {
+    api('/api/subjects', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: Number(v), group: grpFilterValue() || '' }) })
+      .then(function (r) {
+        toast('已添加 ' + r.subject.name + (r.subject.room_id ? '（房间 ' + r.subject.room_id + '）' : '（无直播间）'));
+        $('addInput').value = ''; loadSubjects();
+      }).catch(function (e) { toast(e.message, true); });
+    return;
+  }
+  api('/api/search?q=' + encodeURIComponent(v)).then(function (o) {
+    if (!o.results.length) { toast('搜不到这个名字，试试直接填 UID', true); return; }
+    $('cands').innerHTML = o.results.map(function (r) {
+      return '<div class="cand"><span class="n">' + esc(r.name) + '</span><span class="u">UID ' + r.uid +
+        ' · 粉丝 ' + (r.fans || 0) + '</span><span class="u" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+        esc(r.sign || '') + '</span><button class="act" onclick="pickCand(' + r.uid + ')">加这个</button></div>';
+    }).join('');
+  }).catch(function (e) { toast('搜索失败：' + e.message, true); });
+}
+function pickCand(uid) {
+  api('/api/subjects', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ uid: uid, group: grpFilterValue() || '' }) })
+    .then(function (r) { toast('已添加 ' + r.subject.name); $('cands').innerHTML = ''; $('addInput').value = ''; loadSubjects(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+/* ---------- 事件 ---------- */
+function loadEvents() {
+  var q = '/api/events?limit=80' + (state.evUid ? '&uid=' + state.evUid : '');
+  api(q).then(function (o) {
+    /* A7（2026-11-14）：这里以前写 o.events.length，等于「本页 80 条」，与概览页的
+       「事件总数」互相矛盾 —— 看着像事件被删了。total 由 /api/events 单独给（库里的总数）。 */
+    var evTotal = (o.total == null) ? o.events.length : o.total;
+    $('evHint').textContent = '共 ' + evTotal + ' 条（最新在上）' +
+      (evTotal > o.events.length ? ' · 本页显示最近 ' + o.events.length + ' 条' : '');
+    $('events').innerHTML = o.events.map(function (e) {
+      var dl = e.targets === 0 ? '<span class="st st-off">只入库</span>' :
+        (e.failed ? '<span class="st st-failed">失败 ' + e.failed + '</span>' :
+          e.pending ? '<span class="st st-pending">待发 ' + e.pending + '</span>' :
+            '<span class="st st-sent">已发 ' + e.sent + '</span>');
+      var title = e.url ? '<a href="' + esc(e.url) + '" target="_blank">' + esc(e.title || e.url) + '</a>' : esc(e.title || '');
+      return '<tr><td class="num" title="' + ts(e.created_at) + '">' + ts(e.occurred_at) + '</td><td>' + esc(e.name) +
+        '</td><td><span class="tag t-' + esc(e.type) + '">' + esc(e.type_label) + '</span></td><td>' + title +
+        '</td><td>' + dl + '</td></tr>';
+    }).join('') || '<tr><td colspan="5" class="empty">还没有事件（新号首轮只建基线，不产事件）</td></tr>';
+  }).catch(function (e) { toast('事件加载失败：' + e.message, true); });
+}
+
+/* ---------- 投递 ---------- */
+function loadDeliveries() {
+  var st = $('dlFilter').value;
+  api('/api/deliveries?limit=80' + (st ? '&status=' + st : '')).then(function (o) {
+    $('deliveries').innerHTML = o.deliveries.map(function (d) {
+      var cls = d.status === 'sent' ? 'st-sent' : d.status === 'pending' ? 'st-pending'
+        : d.status === 'dismissed' ? 'st-off' : 'st-failed';
+      var label = d.status === 'sent' ? '已发' : d.status === 'pending' ? '待发'
+        : d.status === 'dismissed' ? '已忽略' : '失败';
+      /* A8（2026-11-14）：失败要有闭环 —— 除了「重投」，还能「忽略」（不发了，也不再计入失败数）。 */
+      var acts = '';
+      if (d.status === 'failed' || d.status === 'dismissed') {
+        acts += '<button class="act" onclick="retryDl(' + d.delivery_id + ')">重投</button>';
+      }
+      if (d.status === 'failed') {
+        acts += '<button class="act" onclick="dismissDl(' + d.delivery_id + ')">忽略</button>';
+      }
+      var errText = d.error || '';
+      var errShow = errText.length > 60 ? errText.slice(0, 60) + '…' : errText;
+      return '<tr><td class="num">' + d.delivery_id + '</td><td>' + esc(d.name) + '</td>' +
+        '<td><span class="tag t-' + esc(d.type) + '">' + esc(d.type_label) + '</span></td>' +
+        '<td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
+          (d.url ? '<a href="' + esc(d.url) + '" target="_blank">' + esc(d.title || d.url) + '</a>'
+                 : esc(d.title || '')) + '</td>' +
+        '<td class="st ' + cls + '">' + label + '</td><td class="num">' + d.attempts + '</td>' +
+        '<td class="num" style="font-size:11.5px;color:var(--red);max-width:260px;overflow:hidden;' +
+          'text-overflow:ellipsis;white-space:nowrap" title="' + esc(errText) + '">' + esc(errShow) + '</td>' +
+        '<td>' + acts + '</td></tr>';
+    }).join('') || '<tr><td colspan="8" class="empty">没有投递记录</td></tr>';
+  }).catch(function (e) { toast('投递加载失败：' + e.message, true); });
+}
+function retryDl(id) {
+  if (!confirm('重投会把这条消息重新排进待发队列，下一轮 tick 会真的再发一次到 QQ。确定重投？')) return;
+  api('/api/deliveries/' + id + '/retry', { method: 'POST' })
+    .then(function () { toast('已重置为待发，下一轮 tick 会重试'); loadDeliveries(); loadStats(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+function dismissDl(id) {
+  if (!confirm('忽略后这条投递不再重发，也不再计入「失败」。确定忽略？')) return;
+  api('/api/deliveries/' + id + '/dismiss', { method: 'POST' })
+    .then(function () { toast('已忽略这条投递'); loadDeliveries(); loadStats(); })
+    .catch(function (e) { toast(e.message, true); });
+}
+
+/* ---------- 日志 ---------- */
+var LV_TEXT = { error: '错误', warn: '警告', info: '信息' };
+// 按日日志的家族（core/logfmt.py 的 LOG_FAMILIES）：拆分后同一天有采集 + 推送两份
+var LOG_KIND = { bot: '主循环', collector: '采集', pusher: '推送' };
+
+function syncSelect(el, list) {
+  var sig = list.map(function (o) { return o.value + '~' + o.label; }).join('|');
+  if (el.dataset.sig === sig) return;
+  var cur = el.value;
+  el.innerHTML = list.map(function (o) {
+    return '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>';
+  }).join('');
+  el.dataset.sig = sig;
+  if (cur) el.value = cur;
+}
+
+function loadLogs() {
+  var q = $('logQ').value.trim();
+  var url = '/api/logs?lines=' + encodeURIComponent($('logLines').value)
+    + '&date=' + encodeURIComponent($('logDate').value)
+    + '&tag=' + encodeURIComponent($('logTag').value)
+    + '&level=' + encodeURIComponent($('logLevel').value)
+    + '&q=' + encodeURIComponent(q);
+  api(url).then(function (o) {
+    // 同一天的采集 / 推送两份日志合成一项，别让下拉里出现两条同日期
+    var byDate = {}, order = [];
+    o.files.forEach(function (f) {
+      if (!f.date) return;                        // 历史 bot.log 没有日期，只在「全部日期」里出现
+      if (!byDate[f.date]) { byDate[f.date] = { bytes: 0, kinds: [] }; order.push(f.date); }
+      byDate[f.date].bytes += f.bytes || 0;
+      if (byDate[f.date].kinds.indexOf(f.kind) < 0) byDate[f.date].kinds.push(f.kind);
+    });
+    var dates = [{ value: '', label: '最新一天' }];
+    order.forEach(function (d) {
+      var g = byDate[d];
+      var kinds = g.kinds.map(function (k) { return LOG_KIND[k] || k; }).join('+');
+      dates.push({ value: d, label: d + ' · ' + kinds + ' · ' + Math.max(1, Math.round(g.bytes / 1024)) + 'KB' });
+    });
+    if (order.length > 1) dates.splice(1, 0, { value: 'all', label: '全部日期' });
+    syncSelect($('logDate'), dates);
+    var tags = [{ value: '', label: '全部类型（' + Object.keys(o.tags).length + '）' }];
+    Object.keys(o.tags).forEach(function (t) {
+      tags.push({ value: t, label: t + ' · ' + o.tags[t] });
+    });
+    syncSelect($('logTag'), tags);
+    syncSelect($('logLevel'), [
+      { value: '', label: '全部级别' },
+      { value: 'error', label: '错误 · ' + o.counts.error },
+      { value: 'warn', label: '警告 · ' + o.counts.warn },
+      { value: 'info', label: '信息 · ' + o.counts.info }
+    ]);
+    /* H6b（2026-11-14）：date=all 有扫描上限（90 份 / 32MB），撞到了要说清楚，
+       否则用户会以为「就这么多日志」。 */
+    var logNote = o.limited
+      ? ' · 已到扫描上限（只扫最近 ' + ((o.picked && o.picked.length) || 0) + ' 份 · '
+        + Math.round(Number(o.scanned_bytes || 0) / 1048576) + 'MB，想更早请选具体日期）'
+      : '';
+    $('logInfo').textContent = '扫描 ' + o.scanned + ' 行 · 命中 ' + o.rows.length + ' 条 · '
+      + (o.picked && o.picked.length ? o.picked.join('、') : '没有日志文件') + logNote;
+    /* A6（2026-11-14）：3 秒自动刷新不该把人从中间拽回底部。先判断「刷新前是否贴着底部」，
+       贴底才跟着滚；用户往上翻在看的，保持原位置。首次渲染（内容为空）视为贴底。 */
+    var logWrap = $('logWrap');
+    var logStick = !logWrap.dataset.rendered ||
+      logWrap.scrollTop + logWrap.clientHeight >= logWrap.scrollHeight - 30;
+    $('logs').innerHTML = o.rows.map(function (r) {
+      var when = (r.date ? r.date.slice(5) + ' ' : '') + (r.time || '');
+      return '<tr class="r-' + r.level + '">'
+        + '<td class="num">' + esc(when || '—') + '</td>'
+        + '<td><span class="lv lv-' + r.level + '">' + LV_TEXT[r.level] + '</span></td>'
+        + '<td class="ttag">' + esc(r.tag || '—') + '</td>'
+        + '<td class="logmsg">' + esc(r.msg || r.raw) + '</td></tr>';
+    }).join('') || '<tr><td colspan="4" class="empty">没有符合条件的日志（试试点「全部级别」或清空关键字）</td></tr>';
+    logWrap.dataset.rendered = '1';
+    if (logStick) logWrap.scrollTop = logWrap.scrollHeight;
+  }).catch(function (e) { toast('日志加载失败：' + e.message, true); });
+}
+
+/* ---------- 录播清理 ---------- */
+var cleanupState = { status: null, dirty: false, warned: false };
+
+function cleanupGiB(n) {
+  if (n == null) return '—';
+  return (Number(n) / 1073741824).toFixed(2) + ' GiB';
+}
+function cleanupDuration(sec) {
+  sec = Math.max(0, Math.round(Number(sec) || 0));
+  if (sec < 60) return sec + ' 秒';
+  if (sec < 3600) return Math.round(sec / 60) + ' 分钟';
+  var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  return h + ' 小时' + (m ? ' ' + m + ' 分' : '');
+}
+function cleanupReviewStatusText(s) {
+  return ({awaiting_notify: '等待 Bot 通知', notified: '等待确认', executing: '执行中',
+    done: '已完成', cancelled: '已取消'})[s] || (s || '无计划');
+}
+function renderCleanupReview(rv, now) {
+  rv = rv || {};
+  var stateEl = $('cleanupReviewState'), body = $('cleanupReviewBody'), hint = $('cleanupReviewHint');
+  if (!rv.plan_id) {
+    stateEl.textContent = '无计划';
+    stateEl.className = 'st st-off';
+    hint.textContent = '发现超限后先在这里展示，并同步推送到 QQ';
+    body.textContent = '当前没有待确认的清理计划。';
+    return;
+  }
+  var active = !!rv.active;
+  stateEl.textContent = cleanupReviewStatusText(rv.status);
+  stateEl.className = 'st ' + (rv.status === 'done' ? 'st-sent' : (active ? 'st-pending' : 'st-off'));
+  var left = rv.deadline_at ? Math.max(0, rv.deadline_at - now) : 0;
+  if (rv.status === 'awaiting_notify') {
+    hint.textContent = '计划已生成，等待监控台 Bot 发送通知；发送成功前不会倒计时，也不会删除';
+  } else if (rv.status === 'notified') {
+    hint.textContent = '已通过 QQ 通知；剩余 ' + cleanupDuration(left) + '，未回复的文件到点删除';
+  } else if (rv.status === 'executing') {
+    hint.textContent = '正在移动保留文件 / 删除未保留文件；保留项移动失败时不会删除';
+  } else if (rv.status === 'done') {
+    hint.textContent = '计划已完成：删除 ' + (rv.deleted || 0) + ' 个，保护 ' + (rv.moved || 0) + ' 个';
+  } else {
+    hint.textContent = '等待处理';
+  }
+  var rows = (rv.candidates || []).map(function (c) {
+    var st = ({pending: '待确认', moved: '已保护', deleted: '已删除', missing: '已不存在',
+      delete_error: '删除失败', move_error: '保护失败', skipped: '已跳过'})[c.status] || c.status;
+    return '<tr><td class="num">' + c.id + '</td><td>' + esc((c.room || '') + '/' + (c.name || ''))
+      + '</td><td class="num">' + cleanupGiB(c.size) + '</td><td class="num">' + esc(ts(c.mtime))
+      + '</td><td>' + esc(st) + (c.error ? '<div class="mini">' + esc(c.error) + '</div>' : '') + '</td></tr>';
+  }).join('');
+  body.innerHTML = '<div class="mini" style="margin-bottom:8px">计划 <b>' + esc(rv.plan_id)
+    + '</b> · ' + esc(rv.reason || '') + ' · 共 ' + (rv.candidates || []).length + ' 个 / '
+    + cleanupGiB(rv.bytes_total) + (rv.keep && rv.keep.length ? (' · 已标记保留：' + rv.keep.join('、')) : '')
+    + '</div><div class="logwrap" style="max-height:260px"><table class="logtbl"><thead><tr>'
+    + '<th style="width:52px">编号</th><th>文件</th><th style="width:92px">大小</th>'
+    + '<th style="width:120px">录制时间</th><th style="width:110px">状态</th></tr></thead><tbody>'
+    + (rows || '<tr><td colspan="5" class="empty">没有候选</td></tr>')
+    + '</tbody></table></div>';
+}
+function renderCleanupStatus(s) {
+  var cfg = s.config || {}, last = s.last_run || null, disk = s.disk || {};
+  var rv = s.review || {}, done = s.last_review || {};
+  var run = !!s.running, en = !!cfg.enabled, sched = s.schedule || {};
+  var phase = s.phase || '';
+  var pcls = run ? 'st-sent' : (phase === 'error' ? 'st-failed' : 'st-off');
+  var plabel = run ? '运行中' : (phase === 'error' ? '上次出错' : '已停止');
+  var cyclic = (Number(sched.interval_days || cfg.interval_days || 1) === 1 ? '每天 ' : ('每 ' + (sched.interval_days || cfg.interval_days) + ' 天 '))
+    + (sched.run_time || cfg.run_time || '03:00');
+  $('cleanupEnabledState').textContent = en ? '已启用' : '已停用';
+  $('cleanupEnabledState').className = 'st ' + (en ? 'st-sent' : 'st-off');
+  $('cleanupToggle').textContent = en ? '停用自动清理' : '启用自动清理';
+  $('cleanupToggle').className = 'act' + (en ? ' danger' : '');
+  ['cleanupToggle', 'cleanupScan', 'cleanupRun'].forEach(function (id) {
+    $(id).disabled = !cfg.root;
+  });
+  $('cleanupEnabledHint').textContent = !cfg.root ? '请先填写录像目录并保存。' : en
+    ? (run ? ('守护按 ' + cyclic + ' 检查') : '已启用，但守护当前没在跑，可点「启动守护」')
+    : '关闭后守护会退出；登录自启快捷方式仍保留';
+  $('cleanupCards').innerHTML = [
+    card('守护进程', '<span class="st ' + pcls + '">' + plabel + '</span>',
+      run ? ('PID ' + s.pid + ' · 已运行 ' + cleanupDuration(s.uptime_s)) :
+        (s.pid_unverified ? 'PID ' + (s.lock_pid || '?') + ' 存在但无法确认是本清理进程（点「停止」只发送停止标记）'
+          : (s.stale_lock ? '锁文件残留（进程已不在）' : '未常驻，点「启动守护」'))),
+    card('自动清理', en ? '开启' : '关闭', en ? (cyclic + ' 检查一次') : '不会自动删除'),
+    card('下次检查', s.next_run_at ? ts(s.next_run_at) : '—',
+      run ? (cyclic + (s.next_run_at ? ' · ' + cleanupDuration(s.next_run_at - s.now) + '后' : '')) : '守护未运行'),
+    card('待确认', rv.plan_id ? (rv.active ? ('等待确认 ' + (rv.pending || 0) + ' 个') : '已完成') : '无计划',
+      rv.plan_id ? (rv.deadline_at && rv.active ? ('截止 ' + ts(rv.deadline_at)) : (rv.reason || '')) : '超限后先通知再删'),
+    card('录像上限', Number(cfg.max_gb).toFixed(2) + ' GB', '磁盘保底 ' + Number(cfg.min_free_gb).toFixed(2) + ' GB'),
+    card('磁盘剩余', !cfg.root ? '—' : disk.error ? '读取失败' : cleanupGiB(disk.free),
+      disk.error ? disk.error : ('总计 ' + cleanupGiB(disk.total))),
+    card('上次清理', done.plan_id ? ('删除 ' + (done.deleted || 0) + ' / 保护 ' + (done.moved || 0)) :
+      (last ? ((last.dry_run ? 'dry-run ' : '删除 ') + last.deleted_count + ' 个') : '还没有跑过'),
+      done.plan_id ? (ts(done.created_at) + ' · 释放 ' + cleanupGiB(done.bytes_deleted)) :
+        (last ? (ts(last.ts) + ' · 释放 ' + cleanupGiB(last.bytes_freed)) : '点「立即扫描」看看候选')),
+    card('保护目录', '只读', cfg.protected_dir || '—'),
+  ].join('');
+  renderCleanupReview(rv, s.now || 0);
+  if (!cleanupState.dirty) fillCleanupForm(cfg);
+  var a = s.autostart || {};
+  $('cleanupAutostartState').textContent = a.configured ? '已加入' : '未加入';
+  $('cleanupAutostartState').className = 'st ' + (a.configured ? 'st-sent' : 'st-off');
+  $('cleanupAutostartBtn').textContent = a.configured ? '移除登录自启' : '加入登录自启';
+  $('cleanupAutostartPath').textContent = a.path || '';
+  if (s.last_error) $('cleanupActionHint').textContent = '上次错误：' + s.last_error;
+  else $('cleanupActionHint').textContent = '扫描只读；检查会先通过 QQ Bot 通知，1 小时后才删';
+}
+function fillCleanupForm(cfg) {
+  $('cleanupRoot').value = cfg.root || '';
+  $('cleanupRoot').disabled = !!cfg.root;
+  $('cleanupMax').value = cfg.max_gb;
+  $('cleanupMinFree').value = cfg.min_free_gb;
+  $('cleanupKeep').value = cfg.keep_recent_minutes;
+  $('cleanupDays').value = cfg.interval_days;
+  $('cleanupTime').value = cfg.run_time;
+  $('cleanupProtected').value = cfg.protected_dir || '';
+  $('cleanupDry').checked = !!cfg.dry_run;
+  $('cleanupDirtyHint').textContent = '';
+}
+function loadCleanup() {
+  return api('/api/cleanup/status').then(function (s) {
+    cleanupState.status = s;
+    cleanupState.warned = false;
+    renderCleanupStatus(s);
+  }).catch(function (e) {
+    if (!cleanupState.warned) {
+      cleanupState.warned = true;
+      toast('清理状态读取失败：' + e.message, true);
+    }
+  });
+}
+function saveCleanup() {
+  var max = Number($('cleanupMax').value), minFree = Number($('cleanupMinFree').value);
+  var keep = Number($('cleanupKeep').value);
+  var days = Number($('cleanupDays').value), runTime = $('cleanupTime').value.trim();
+  var settings = { max_gb: max, min_free_gb: minFree, keep_recent_minutes: keep,
+    interval_days: days, run_time: runTime, dry_run: $('cleanupDry').checked };
+  if (!$('cleanupRoot').disabled) {
+    settings.root = $('cleanupRoot').value.trim();
+    if (!settings.root) { toast('请填写录像目录', true); return; }
+  }
+  if (!(max > 0)) { toast('录像上限必须大于 0', true); return; }
+  if (!(minFree >= 0)) { toast('磁盘保底不能小于 0', true); return; }
+  if (!(keep >= 1)) { toast('保护时间至少 1 分钟', true); return; }
+  if (!(Number.isInteger(days) && days >= 1 && days <= 365)) { toast('检查间隔必须是 1-365 的整数天', true); return; }
+  if (!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(runTime)) { toast('执行时间格式应为 HH:MM', true); return; }
+  var btn = $('cleanupSave');
+  btn.disabled = true;
+  api('/api/cleanup/config', {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings)
+  }).then(function (r) {
+    cleanupState.dirty = false;
+    $('cleanupDirtyHint').textContent = '';
+    toast(r.message || '设置已保存');
+    loadCleanup();
+    loadCleanupLogs();
+  }).catch(function (e) { toast(e.message, true); })
+    .then(function () { btn.disabled = false; });
+}
+function cleanupAction(method, path, body, okText, quiet) {
+  var opt = { method: method };
+  if (body !== undefined) {
+    opt.headers = { 'Content-Type': 'application/json' };
+    opt.body = JSON.stringify(body);
+  }
+  return api(path, opt).then(function (r) {
+    if (!quiet) toast(okText || r.message || '已完成');
+    loadCleanup();
+    loadCleanupLogs();
+    return r;
+  }).catch(function (e) { toast(e.message, true); return null; });
+}
+function cleanupScan() {
+  cleanupAction('POST', '/api/cleanup/scan', undefined, '', true).then(function (r) {
+    if (!r) return;
+    var x = r.result || {};
+    toast('dry-run：候选 ' + x.candidates + ' 个，会删除 ' + x.deleted_count + ' 个 / ' + cleanupGiB(x.bytes_freed));
+  }).catch(function () { /* toast 已提示 */ });
+}
+function cleanupRun() {
+  var st = cleanupState.status || {};
+  var dry = !!(st.config && st.config.dry_run);
+  var msg = dry ? '当前是 dry-run：只报告候选，不会通知也不会删除。继续？'
+    : '立即检查一次？发现超限会先通过 QQ Bot 通知你，1 小时内未回复「保留」才删除。';
+  if (!confirm(msg)) return;
+  cleanupAction('POST', '/api/cleanup/run', undefined, '', true).then(function (r) {
+    if (!r) return;
+    if (r.dry_run) {
+      var x = r.result || {};
+      toast('dry-run：候选 ' + x.candidates + ' 个 / ' + cleanupGiB(x.bytes_freed), false);
+    } else {
+      toast(r.message || '已请求守护检查');
+    }
+  }).catch(function () { /* toast 已提示 */ });
+}
+function cleanupToggle() {
+  var st = cleanupState.status || {}, en = !!(st.config && st.config.enabled);
+  if (en && !confirm('停用自动清理？守护会退出，不再按计划检查；登录自启快捷方式保留。')) return;
+  cleanupAction('POST', '/api/cleanup/enable', { enabled: !en },
+    en ? '已停用自动清理' : '已启用自动清理');
+}
+function cleanupStart() { cleanupAction('POST', '/api/cleanup/start', undefined, '守护已启动'); }
+function cleanupStop() {
+  if (!confirm('停止清理守护？待确认计划会保留，但不会继续倒计时或删除。')) return;
+  cleanupAction('POST', '/api/cleanup/stop', undefined, '守护已停止');
+}
+function cleanupRestart() {
+  if (!confirm('重启清理守护？会先停止再启动。')) return;
+  cleanupAction('POST', '/api/cleanup/restart', undefined, '守护已重启');
+}
+function cleanupAutostart() {
+  var st = cleanupState.status || {}, a = st.autostart || {};
+  cleanupAction('POST', '/api/cleanup/autostart', { enabled: !a.configured },
+    a.configured ? '已移除登录自启' : '已加入登录自启');
+}
+function loadCleanupLogs() {
+  var url = '/api/cleanup/logs?lines=300&level=' + encodeURIComponent($('cleanupLogLevel').value)
+    + '&q=' + encodeURIComponent($('cleanupLogQ').value.trim());
+  api(url).then(function (o) {
+    var wrap = $('cleanupLogWrap');
+    var stick = wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 30;
+    $('cleanupLogInfo').textContent = '扫描 ' + o.scanned + ' 行 · 命中 ' + o.rows.length + ' 条 · 错误 '
+      + o.counts.error + ' / 警告 ' + o.counts.warn;
+    $('cleanupLogs').innerHTML = o.rows.map(function (r) {
+      var when = (r.date ? r.date.slice(5) + ' ' : '') + (r.time || '');
+      return '<tr class="r-' + r.level + '"><td class="num">' + esc(when || '—') + '</td>'
+        + '<td><span class="lv lv-' + r.level + '">' + (LV_TEXT[r.level] || r.level) + '</span></td>'
+        + '<td class="logmsg">' + esc(r.msg) + '</td></tr>';
+    }).join('') || '<tr><td colspan="3" class="empty">没有符合条件的清理日志</td></tr>';
+    if (stick) wrap.scrollTop = wrap.scrollHeight;
+  }).catch(function (e) { toast('清理日志加载失败：' + e.message, true); });
+}
+
+/* ---------- 日程表（周表） ---------- */
+var wk = { week: '', cur: null, who: '' };
+var wkEntries = [];        /* 渲染时的条目索引，编辑按钮靠它回查 */
+var WD_CN = ['周一','周二','周三','周四','周五','周六','周日'];
+function wkIso(d) {
+  var p = function (n) { return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function wkMonday(t) {
+  var d = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  var w = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - w);
+  return wkIso(d);
+}
+function wkDayDate(ws, i) {
+  var p = (ws || '').split('-');
+  if (p.length !== 3) return '';
+  var d = new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]));
+  d.setDate(d.getDate() + i);
+  return (d.getMonth() + 1) + '/' + d.getDate();
+}
+function wkHhmm(s) {
+  var m = /^(\d{1,2})[:：](\d{2})$/.exec(String(s || '').trim());
+  return m ? (Number(m[1]) + ':' + m[2]) : '';
+}
+/* 模糊时段：只有「晚上 / 中午 / 9~12」这类写法时也算有时间，只是不精确 */
+function wkFuzzy(s) {
+  var t = String(s || '');
+  return /凌晨|清晨|一早|早上|早晨|上午|中午|午后|下午|傍晚|晚上|晚间|夜里|夜间|深夜|半夜/.test(t) ||
+    /^\d{1,2}\s*[~～\-—–至到]\s*\d{1,2}/.test(t) ||
+    /[零〇一二两三四五六七八九十]\s*点/.test(t);
+}
+/* 2026-11-09：时间列只写 H:mm；休息写「休息」；认不出具体钟点写「待定」，模糊原文放正文 */
+function wkRest(e) {
+  var t = String((e && (e.time_text || e.text)) || '').trim();
+  return /^(今天|今日|明天|明日)?(休息|休|停播|不播|放假|歇)(一天|日)?$/.test(t);
+}
+function wkLabel(e) {
+  var t = wkHhmm(e.time);
+  if (t) return t;
+  var tt = String(e.time_text || '').trim();
+  t = wkHhmm(tt);                         /* 旧数据：时间写在 time_text 里 */
+  if (t) return t;
+  if (wkRest(e)) return '休息';
+  if (tt && wkFuzzy(tt)) return '待定';    /* 上午/晚上/9~12/十点或十一点 都算待定 */
+  if (String(e.text || '').trim()) return '待定';   /* 有节目却没写时间 */
+  return '';
+}
+/* 2026-11-10：条目已经落到具体日期，正文不再重复「今天 / 明天 / 后天」 */
+var WK_DAY_RE = /大后天|大前天|明天|明日(?!方舟|之后|香|之子)|明晚|明早|明晨|明儿|今天(?!开始做)|今日(?!说法|头条|关注)|今晚|今早|今晨|今儿|后天|前天|次日|隔天|当天|当日|翌日/g;
+function wkStripDay(s) {
+  s = String(s || '').trim();
+  if (!s) return '';
+  s = s.replace(/[（(]([^（）()]*)[）)]/g, function (m, inner) {
+    var t = inner.replace(WK_DAY_RE, '').replace(/[\s、，,;；·\/]+/g, '');
+    if (/^(|休息|休|停播|不播|放假|歇|休息中|都休息|也休息)$/.test(t)) return '';
+    return m;
+  });
+  s = s.replace(WK_DAY_RE, '');
+  s = s.replace(/[、，,;；]\s*(?=[、，,;；])/g, '');
+  s = s.replace(/[（(]\s*[、，,;；]*\s*[）)]/g, '');
+  s = s.replace(/^[\s、，,;；:：\-—·\/]+|[\s、，,;；:：·\/]+$/g, '');
+  return s.replace(/[ \t]{2,}/g, ' ').trim();
+}
+function wkBody(e, label) {
+  var text = wkStripDay(e.text);
+  if (label !== '待定') return text;
+  var raw = wkStripDay(e.time_text);
+  if (!raw || /待定|未定/i.test(raw) || text.indexOf(raw) >= 0) return text;
+  return text ? (text + '（' + raw + '）') : raw;
+}
+
+function loadWeekly() {
+  var m = /#weekly\/(\d{4}-\d{2}-\d{2})/.exec(location.hash || '');
+  if (m) wk.week = m[1];                 /* 支持 #weekly/2026-10-26 这种直达链接 */
+  var q = /[?&]who=(\d+)/.exec(location.search || '');
+  if (q) wk.who = q[1];                  /* ?who=<uid> 直达某个主播的筛选视图 */
+  var url = '/api/weekly' + (wk.week ? '?week=' + encodeURIComponent(wk.week) : '');
+  return api(url).then(function (o) {
+    wk.cur = o; wk.week = o.week_start;
+    var today = wkMonday(new Date());
+    $('wkWeek').innerHTML = esc(o.week_label || o.week_start) +
+      '<small>' + esc(o.week_start) + ' 起</small>';
+    $('wkHint').textContent = (o.streamers ? o.streamers + ' 位主播' : '本周没有整周周表') +
+      ' · 单场预告 ' + (o.sessions || 0) + ' 条'
+      + (o.live_now ? ' · 直播中 ' + o.live_now : '')
+      + ' · 待确认 ' + o.pending + ' 条'
+      + (o.needs_review ? ' · 需复核 ' + o.needs_review + ' 条' : '')
+      + (o.manuals ? ' · 人工 ' + o.manuals + ' 条'
+          + (o.manual_orphans ? '（失效 ' + o.manual_orphans + '）' : '') : '');
+    var opts = (o.weeks || []).slice();
+    if (opts.indexOf(o.week_start) < 0) opts.unshift(o.week_start);
+    $('wkPick').innerHTML = opts.map(function (w) {
+      return '<option value="' + esc(w) + '"' + (w === o.week_start ? ' selected' : '') + '>' +
+        esc(w) + ' 那周</option>';
+    }).join('');
+
+    var whoSel = $('wkWho');
+    var whoList = o.roster || [];
+    if (wk.who && !whoList.some(function (r) { return String(r.uid) === wk.who; })) wk.who = '';
+    whoSel.innerHTML = '<option value="">全部主播</option>' + whoList.map(function (r) {
+      return '<option value="' + esc(String(r.uid)) + '">' + esc(r.uname || ('UID' + r.uid)) +
+        '（' + r.count + ' 场）</option>';
+    }).join('');
+    whoSel.value = wk.who || '';
+    whoSel.onchange = function () { wk.who = this.value; applyWkFilter(); };
+
+    wkEntries = [];
+    $('weekGrid').innerHTML = (o.days || []).map(function (d, i) {
+      var items = (d.entries || []).map(function (e) {
+        var label = wkLabel(e);
+        var bodyText = wkBody(e, label);
+        var cls = 'wke' + (e.needs_review ? ' rev' : '') +
+          ((label && label !== '休息' && label !== '待定') ? '' : ' rest');
+        if (e.cancelled) cls += ' cancel';
+        if (e.source === 'single') cls += ' single';
+        if (e.overridden) cls += ' ovr';
+        if (e.live) cls += ' live';
+        if (e.program_name) cls += ' prog';
+        var t = label;
+        var tag = '';
+        if (e.kind === 'override') tag = '<span class="k k-o">改</span>';
+        else if (e.cancelled) tag = '<span class="k k-c">取消</span>';
+        if (e.collab) tag = '<span class="k k-l">联动</span>' + tag;
+        if (e.live) tag = '<span class="k k-live">直播中</span>' + tag;
+        if (e.ocr_signal === 'diff') tag = '<span class="k k-ocr" title="OCR 与视觉读出的时间对不上，已标待复核">OCR 异</span>' + tag;
+        var who = e.uname || '';
+        if (e.collab && (e.uids || []).length > 3) {   /* 5 人联动写全挤成 4 行，折成前两位 + 人数 */
+          who = who.split(' × ').slice(0, 2).join(' × ') + ' 等 ' + e.uids.length + ' 人';
+        }
+        var body = (t ? '<span class="t">' + esc(t) + '</span>' : '') +
+          '<span class="n">' + esc(who) + '</span>' + tag +
+          (bodyText ? '<span class="d">' + esc(bodyText) + '</span>' : '') +
+          (e.cancelled && e.cancel_note ? '<span class="d">' + esc(e.cancel_note) + '</span>' : '');
+        var tip = e.live
+          ? ('正在直播' + (e.live_title ? '：' + e.live_title : '') + ' · 点开进直播间')
+          : (e.collab
+             ? ('联动：' + e.uname + ' · 点开原动态')
+             : ((e.source === 'single' ? '单场预告' : (e.source === 'manual' ? '人工添加' : '周表')) +
+                (e.week_label ? ' ' + e.week_label : '') + ' · 点开原动态'));
+        if (e.program_name) tip = '常驻节目「' + e.program_name + '」 · ' + tip;
+        var k = wkEntries.push(e) - 1;
+        var goUrl = (e.live && e.live_url) ? e.live_url : e.url;
+        var href = goUrl ? ' href="' + esc(goUrl) + '" target="_blank" rel="noreferrer"' : '';
+        var uids = (e.uids && e.uids.length ? e.uids : [e.uid]).join(',');
+        return '<div class="wkwrap"><a class="' + cls + '" data-uids="' + esc(uids) + '"' + href +
+          ' title="' + esc(tip) + '">' +
+          body + '</a><button class="wkedit" data-k="' + k + '" title="编辑/删除">✎</button></div>';
+      }).join('') || '<div class="none">— 没排</div>';
+      return '<div class="wkday' + (o.week_start === today ? ' today' : '') + '">' +
+        '<div class="dh"><b>' + esc(WD_CN[i] || d.day) + '</b>' +
+        '<span>' + esc(wkDayDate(o.week_start, i)) +
+        ' <button class="wkadd" data-day="' + esc(d.day) + '" title="手动添加一条">＋</button></span></div>' +
+        items + '</div>';
+    }).join('');
+
+    var chs = o.changes || [];
+    var cbox = $('wkChanges');
+    if (!chs.length) {
+      cbox.style.display = 'none'; cbox.innerHTML = '';
+    } else {
+      cbox.style.display = 'block';
+      cbox.innerHTML = '<b>最近更新</b><div class="chlist">' + chs.slice(0, 6).map(function (c) {
+        var d = new Date(c.at * 1000), p = function (n) { return (n < 10 ? '0' : '') + n; };
+        var hh = p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+        var parts = [];
+        if (c.added) parts.push('新增 ' + c.added);
+        if (c.changed) parts.push('改档 ' + c.changed);
+        if (c.removed) parts.push('移除 ' + c.removed);
+        if (c.scope === 'single') {
+          var it = (c.items || [])[0] || {};
+          parts = ['挂到 ' + (it.date || '').slice(5) + ' ' + (it.time || '') + ' ' + (it.text || '')];
+        }
+        return '<div class="ch"><span class="t">' + hh + '</span><b>' + esc(c.uname) + '</b>' +
+          '<span class="d">' + (c.scope === 'single' ? '单场预告' : '周表更新') + '：' +
+          esc(parts.join(' / ')) + '</span></div>';
+      }).join('') + '</div>';
+    }
+
+    var ex = o.external || [];
+    var exBox = $('wkExt');
+    if (!ex.length) {
+      exBox.style.display = 'none'; exBox.innerHTML = '';
+    } else {
+      exBox.style.display = 'flex';
+      exBox.innerHTML = '<b>联动外部对象</b>' + ex.map(function (x) {
+        var fans = x.fans ? (x.fans >= 10000 ? (x.fans / 10000).toFixed(1) + ' 万' : String(x.fans)) : '';
+        if (x.status === 'done' && x.uid) {
+          return '<a class="xchip" href="https://space.bilibili.com/' + x.uid +
+            '" target="_blank" rel="noreferrer" title="' + esc(x.sign || '') + '">' +
+            '<span class="n">' + esc(x.name) + '</span><span>→ ' + esc(x.uname || '') + '</span>' +
+            (fans ? '<span class="f">' + esc(fans) + ' 粉</span>' : '') + '</a>';
+        }
+        if (x.status === 'none' || x.status === 'error') {
+          return '<span class="xchip" title="' + esc(x.note || '') + '">' +
+            '<span class="n">' + esc(x.name) + '</span><span>未搜到</span></span>';
+        }
+        return '<span class="xchip pending"><span class="n">' + esc(x.name) +
+          '</span><span>检索中…</span></span>';
+      }).join('');
+    }
+
+    wkRenderPrograms(o.programs || []);
+
+    var cs = o.candidates || [];
+    if (o.cache) {
+      $('wkCache').textContent = '本地图缓存 ' + (o.cache.files || 0) + ' 张 / ' +
+        (o.cache.mb || 0) + ' MB';
+    } else {
+      $('wkCache').textContent = '';
+    }
+    $('wkPendHint').textContent = cs.length
+      ? '共 ' + o.pending + ' 条待确认，按可疑度列前 ' + cs.length + ' 条；看图后点卡片下方定性：周表 / 单场 / 非日程，也可以勾选后批量处理'
+      : '暂时没有待确认的候选';
+    $('wkCands').innerHTML = cs.map(function (c) {
+      var tx = (c.text || '').replace(/\s+/g, ' ').slice(0, 70);
+      var ti = (c.title || '').replace(/\s+/g, ' ').trim();
+      var picked = wkSel[c.event_id] ? ' picked' : '';
+      var tag = c.human_scope === 'week' ? '<span class="tag-h">人工:周表</span>'
+        : (c.human_scope === 'single' ? '<span class="tag-h">人工:单场</span>' : '');
+      var eid = esc(c.event_id);
+      return '<div class="wkcand' + picked + '" data-card="' + eid + '">' +
+        '<label class="pick"><input type="checkbox" data-pick="' + eid + '"' +
+        (wkSel[c.event_id] ? ' checked' : '') + '></label>' +
+        '<a class="im" href="' + esc(c.thumb) + '" target="_blank" rel="noreferrer">' +
+        '<img loading="lazy" src="' + esc(c.thumb) + '" alt="" onerror="this.style.display=\'none\'"></a>' +
+        '<div class="bd"><div class="who"><b>' + esc(c.uname || ('UID' + c.uid)) + '</b>' + tag + '</div>' +
+        (ti ? '<div class="ti" title="' + esc(ti) + '">' + esc(ti) + '</div>' : '') +
+        (tx || !ti ? '<div class="tx">' + esc(tx || '（无正文）') + '</div>' : '') + '</div>' +
+        '<div class="ops"><a href="' + esc(c.url || '#') + '" target="_blank" rel="noreferrer">原动态</a>' +
+        '<button data-scope="week" data-eid="' + eid + '">周表</button>' +
+        '<button data-scope="single" data-eid="' + eid + '">单场</button>' +
+        '<button data-scope="none" data-eid="' + eid + '">非日程</button>' +
+        '</div></div>';
+    }).join('');
+    wkSyncBulk();
+    applyWkFilter();
+  }).catch(function (e) { toast('日程表加载失败：' + e.message, true); });
+}
+/* 按主播筛选：命中的场次高亮，其余（含整列没有 TA 的日子）变暗 */
+function applyWkFilter() {
+  var who = wk.who || '';
+  document.querySelectorAll('#weekGrid .wke').forEach(function (a) {
+    var hit = !!who && (a.dataset.uids || '').split(',').indexOf(who) >= 0;
+    a.classList.toggle('hit', hit);
+    a.classList.toggle('dim', !!who && !hit);
+  });
+  document.querySelectorAll('#weekGrid .wkday').forEach(function (col) {
+    col.classList.toggle('dim', !!who && !col.querySelector('.wke.hit'));
+  });
+}
+/* 候选定性：周表 / 单场 / 非日程，支持批量 */
+var wkSel = {};
+var WK_SCOPE_LABEL = { week: '周表', single: '单场', none: '非日程' };
+
+function wkSelIds() { return Object.keys(wkSel); }
+
+function wkSyncBulk() {
+  var n = wkSelIds().length;
+  $('wkSelInfo').textContent = n ? ('已选 ' + n + ' 条') : '未选择';
+  ['wkBulkWeek', 'wkBulkSingle', 'wkBulkNone'].forEach(function (id) {
+    var el = $(id);
+    if (el) el.disabled = n === 0;
+  });
+}
+
+function wkSetScope(ids, scope) {
+  if (!ids.length) { toast('先勾选候选', true); return; }
+  api('/api/weekly/candidates/verdict', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_ids: ids, scope: scope })
+  }).then(function (r) {
+    toast('已把 ' + r.count + ' 条标为「' + (WK_SCOPE_LABEL[scope] || scope) + '」'
+      + (scope === 'none' ? '' : '，下次识别优先处理'));
+    ids.forEach(function (id) { delete wkSel[id]; });
+    loadWeekly();
+  }).catch(function (e) { toast('操作失败：' + e.message, true); });
+}
+
+/* ---------- 人工修改日程（2026-11-03） ---------- */
+var wkModal = { mode: 'add', entry: null, day: 'MON' };
+var wkSubjects = null;
+var DAY_CODES = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+
+/* 名单里一个主播一个：数据里的 uname 可能是「A × B × C」叠加串，直接当
+   选项名会让「主播 / 联动对象 / 常驻主持」出现一条含多个主播的选项。
+   这里按 uid 拆开，每个 uid 只取属于自己的那个名字（展示仍是聚合的一条）。 */
+function wkOneName(n) {
+  return String(n == null ? '' : n).split(' × ')[0].trim();
+}
+
+function wkSubjectOptions() {
+  var seen = {}, out = [];
+  function add(uid, name) {
+    uid = Number(uid);
+    if (!uid || seen[uid]) return;
+    seen[uid] = 1;
+    out.push({ uid: uid, name: wkOneName(name) || ('UID' + uid) });
+  }
+  (wk.cur && wk.cur.days ? wk.cur.days : []).forEach(function (d) {
+    (d.entries || []).forEach(function (e) {
+      add(e.uid, e.uname);
+      (e.partners || []).forEach(function (p) { add(p.uid, p.uname); });
+      var parts = String(e.uname || '').split(' × ');
+      (e.uids || []).forEach(function (u, i) { add(u, parts[i] || ''); });
+    });
+  });
+  (wkSubjects || []).forEach(function (s) { add(s.uid, s.name); });
+  return out;
+}
+
+function wkFillCollab(keep) {
+  var el = $('wkMCollab');
+  keep = (keep || []).map(String);
+  el.innerHTML = wkSubjectOptions().map(function (s) {
+    return '<option value="' + s.uid + '">' + esc(s.name || ('UID' + s.uid)) + '</option>';
+  }).join('');
+  Array.prototype.forEach.call(el.options, function (o) {
+    o.selected = keep.indexOf(o.value) >= 0;
+  });
+}
+
+function wkOpenModal(mode, entry, day) {
+  wkModal = { mode: mode, entry: entry || null, day: day || 'MON' };
+  var pre = entry ? (entry.uids || []).filter(function (u) {
+    return String(u) !== String(entry.uid);
+  }).map(String) : [];
+  if (!wkSubjects) {
+    api('/api/subjects').then(function (o) { wkSubjects = o.subjects || []; wkFillCollab(pre); })
+      .catch(function () { /* 拉不到就只用本周出现过的号 */ });
+  }
+  wkFillCollab(pre);
+  $('wkMTitle').textContent = mode === 'add' ? '添加日程' : '编辑日程';
+  var subj = wkSubjectOptions();
+  $('wkMUid').innerHTML = subj.map(function (s) {
+    return '<option value="' + s.uid + '">' + esc(s.name || ('UID' + s.uid)) + '</option>';
+  }).join('');
+  $('wkMDay').innerHTML = DAY_CODES.map(function (c, i) {
+    return '<option value="' + c + '">' + WD_CN[i] + '</option>';
+  }).join('');
+  if (entry) {
+    $('wkMUid').value = String(entry.uid);
+    $('wkMDay').value = entry.day || day || 'MON';
+    $('wkMTime').value = (entry.time ? wkHhmm(entry.time) : '') || entry.time_text || '';
+    $('wkMText').value = entry.text || '';
+    $('wkMNote').value = entry.note || '';
+  } else {
+    $('wkMDay').value = day || 'MON';
+    $('wkMTime').value = '';
+    $('wkMText').value = '';
+    $('wkMNote').value = '';
+  }
+  $('wkMDel').style.display = mode === 'edit' ? '' : 'none';
+  $('wkMDel').textContent = (entry && entry.manual_id) ? '撤销此修改' : '删除此条';
+  $('wkModal').classList.add('show');
+  setTimeout(function () {
+    (mode === 'add' ? $('wkMText') : $('wkMTime')).focus();
+  }, 30);
+}
+
+function wkCloseModal() { $('wkModal').classList.remove('show'); }
+
+function wkSaveModal() {
+  var e = wkModal.entry;
+  var body = {
+    uid: Number($('wkMUid').value),
+    week_start: wk.cur.week_start,
+    day: $('wkMDay').value,
+    time: $('wkMTime').value.trim(),
+    text: $('wkMText').value.trim(),
+    note: $('wkMNote').value.trim(),
+    collab_uids: Array.prototype.map.call($('wkMCollab').selectedOptions, function (o) {
+      return Number(o.value);
+    }).filter(function (u) { return u && u !== Number($('wkMUid').value); })
+  };
+  var req;
+  if (wkModal.mode === 'add') {
+    body.op = 'add';
+    if (!body.text && !body.time) { toast('时间或内容至少填一个', true); return; }
+    req = api('/api/weekly/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } else if (e.manual_id) {
+    req = api('/api/weekly/manual/' + e.manual_id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  } else {
+    body.op = 'modify';
+    body.uid = e.uid;
+    body.target_time = e.time || '';
+    body.target_text = e.text || '';
+    req = api('/api/weekly/manual', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
+  req.then(function () { wkCloseModal(); toast('已保存'); loadWeekly(); })
+     .catch(function (err) { toast('保存失败：' + err.message, true); });
+}
+
+var wkProg = { id: null };
+
+function wkProgSubjectList(extra) {
+  var seen = {}, out = [];
+  (wkSubjectOptions() || []).forEach(function (s) {
+    if (!seen[s.uid]) { seen[s.uid] = 1; out.push(s); }
+  });
+  (extra || []).forEach(function (h) {
+    if (h && h.uid && !seen[h.uid]) { seen[h.uid] = 1; out.push({ uid: h.uid, name: h.uname }); }
+  });
+  return out;
+}
+
+function wkFillProgHosts(p) {
+  var sel = $('wkPHosts');
+  var keep = (p && p.hosts ? p.hosts : []).map(function (h) { return String(h.uid); });
+  sel.innerHTML = wkProgSubjectList(p ? p.hosts : []).map(function (s) {
+    return '<option value="' + s.uid + '">' + esc(s.name || ('UID' + s.uid)) + '</option>';
+  }).join('');
+  Array.prototype.forEach.call(sel.options, function (o) {
+    o.selected = keep.indexOf(o.value) >= 0;
+  });
+}
+
+function wkRenderPrograms(progs) {
+  var box = $('wkProgs');
+  if (!box) return;
+  box.innerHTML = (progs || []).map(function (p) {
+    var hosts = (p.hosts || []).map(function (h) {
+      return h.uname || ('UID' + h.uid);
+    }).join('、');
+    var tip = '别名：' + (p.aliases || []).join(' / ') + (p.note ? '\n' + p.note : '');
+    return '<span class="pchip" data-pid="' + p.program_id + '" title="' + esc(tip) + '">' +
+      '<b>' + esc(p.name) + '</b>' +
+      '<span class="hs">' + esc(hosts || '未设常驻主持') + '</span>' +
+      (p.weekday || p.time
+        ? '<span class="n">' + esc((p.weekday || '') + (p.time ? ' ' + p.time : '')) + '</span>' : '') +
+      (p.week_entries ? '<span class="n">本周 ' + p.week_entries + ' 场</span>' : '') +
+      (p.enabled === false ? '<span class="n">已停用</span>' : '') + '</span>';
+  }).join('') || '<span class="hint">还没有登记常驻节目</span>';
+}
+
+function wkOpenProg(p) {
+  wkProg = { id: p ? p.program_id : null };
+  $('wkPTitle').textContent = p ? ('常驻节目：' + p.name) : '新建常驻节目';
+  $('wkPName').value = p ? p.name : '';
+  $('wkPAliases').value = p ? (p.aliases || []).filter(function (a) {
+    return a !== p.name;
+  }).join(', ') : '';
+  $('wkPNote').value = p ? (p.note || '') : '';
+  $('wkPTime').value = p ? (p.time || '') : '';
+  $('wkPDay').innerHTML = '<option value="">不定</option>' + DAY_CODES.map(function (c, i) {
+    return '<option value="' + c + '">' + WD_CN[i] + '</option>';
+  }).join('');
+  $('wkPDay').value = p ? (p.weekday || '') : '';
+  $('wkPDel').style.display = p ? '' : 'none';
+  wkFillProgHosts(p);
+  $('wkProgModal').classList.add('show');
+  if (!wkSubjects) {
+    api('/api/subjects').then(function (o) {
+      wkSubjects = o.subjects || [];
+      if (wkProg.id === (p ? p.program_id : null)) wkFillProgHosts(p);
+    }).catch(function () { /* 拉不到就只用本周出现过的号 */ });
+  }
+  setTimeout(function () { $('wkPName').focus(); }, 30);
+}
+
+function wkCloseProg() { $('wkProgModal').classList.remove('show'); }
+
+function wkSaveProg() {
+  var body = {
+    name: $('wkPName').value.trim(),
+    aliases: $('wkPAliases').value.split(/[,，、\n]/).map(function (s) {
+      return s.trim();
+    }).filter(Boolean),
+    weekday: $('wkPDay').value,
+    time: $('wkPTime').value.trim(),
+    note: $('wkPNote').value.trim(),
+    hosts: Array.prototype.map.call($('wkPHosts').selectedOptions, function (o) {
+      return Number(o.value);
+    })
+  };
+  if (!body.name) { toast('节目名不能为空', true); return; }
+  var opt = { method: wkProg.id ? 'PATCH' : 'POST',
+              headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+  var url = wkProg.id ? '/api/weekly/programs/' + wkProg.id : '/api/weekly/programs';
+  api(url, opt).then(function () {
+    wkCloseProg(); toast('已保存'); loadWeekly();
+  }).catch(function (err) { toast('保存失败：' + err.message, true); });
+}
+
+function wkDelProg() {
+  if (!wkProg.id) return;
+  if (!confirm('删除这个常驻节目？已排的日程不受影响，只是之后不再自动补主持。')) return;
+  api('/api/weekly/programs/' + wkProg.id, { method: 'DELETE' }).then(function () {
+    wkCloseProg(); toast('已删除'); loadWeekly();
+  }).catch(function (err) { toast('删除失败：' + err.message, true); });
+}
+
+function wkDeleteEntry() {
+  var e = wkModal.entry;
+  if (!e) return;
+  var req, tip;
+  if (e.manual_id) {
+    tip = '撤销这条人工修改？自动识别的原样会回来。';
+    req = api('/api/weekly/manual/' + e.manual_id, { method: 'DELETE' });
+  } else if (e.source === 'single' && e.session_id) {
+    tip = '删除这条单场预告？';
+    req = api('/api/weekly/sessions/' + encodeURIComponent(e.session_id), { method: 'DELETE' });
+  } else {
+    tip = '把这条从日程表里去掉？';
+    req = api('/api/weekly/manual', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: e.uid, week_start: wk.cur.week_start, day: e.day,
+        op: 'remove', target_time: e.time || '', target_text: e.text || '' })
+    });
+  }
+  if (!confirm(tip)) return;
+  req.then(function () { wkCloseModal(); toast('已处理'); loadWeekly(); })
+     .catch(function (err) { toast('操作失败：' + err.message, true); });
+}
+
+/* ---------- 进程（后台任务与独立进程） ---------- */
+var taskCache = { groups: [] };
+var TASK_COUNTER_LABEL = { rounds: '轮', events: '事件', ticks: '派发', sent: '已发',
+  runs: '次', skipped: '跳过', saved: '新增' };
+
+/* 主进程的「停止」要点两次：第一次只把按钮换成「确认停止」，15 秒内不点就自己撤回。
+   列表每 3 秒整表重绘，所以确认态必须存在全局，不能只活在按钮的 DOM 上。 */
+var mainStop = { until: 0 };
+/* 点完重启 / 停止后的过渡态：等面板回来（重启）或彻底放手（停止） */
+var reboot = { until: 0, since: 0, mode: '', note: '' };
+
+function taskCounters(t) {
+  var c = t.counters || {}, out = [];
+  Object.keys(c).forEach(function (k) {
+    out.push((TASK_COUNTER_LABEL[k] || k) + ' ' + c[k]);
+  });
+  if (t.pid) out.push('pid ' + t.pid);
+  if (t.port) out.push('端口 ' + t.port);
+  return out.join(' · ');
+}
+
+var taskAutoPending = {};
+
+/* 主进程显示 Windows 登录自启，子进程显示随监控台启动。 */
+function autoCell(t) {
+  if (t.autostart === true || t.autostart === false) {
+    return '<label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--dim);cursor:pointer">' +
+      '<input type="checkbox"' + (t.autostart ? ' checked' : '') +
+      (taskAutoPending[t.key] ? ' disabled' : '') +
+      ' onchange="this.disabled=true;taskAuto(\'' + esc(t.key) + '\',this.checked)">' +
+      esc(t.autostart_text) + '</label>';
+  }
+  return '<span class="hint">' + esc(t.autostart_text || '—') + '</span>';
+}
+
+function taskRow(t) {
+  var cls = (t.status === 'running' || t.status === 'self') ? 'st-sent'
+          : (t.status === 'paused' ? 'st-pending' : 'st-off');
+  var btns = [];
+  if (t.toggle) {
+    btns.push('<button class="act" onclick="toggleTask(\'' + esc(t.key) + '\',' +
+      (t.paused ? 'false' : 'true') + ')">' +
+      (t.paused ? '恢复' : '暂停') + '</button>');
+  }
+  if (t.kind === 'process' && t.key !== 'supervisor') {
+    if (t.alive) {
+      if (t.key === 'livedeck') {
+        btns.push('<a class="act" href="http://127.0.0.1:8760/" target="_blank" rel="noopener">打开</a>');
+      }
+      btns.push('<button class="act" onclick="taskProc(\'' + esc(t.key) + '\',\'restart\')">重启</button>');
+      btns.push('<button class="act" onclick="taskProc(\'' + esc(t.key) + '\',\'stop\')">停止</button>');
+    } else {
+      btns.push('<button class="act" onclick="taskProc(\'' + esc(t.key) + '\',\'start\')">启动</button>');
+    }
+  }
+  if (t.kind === 'self') {
+    if (mainStop.until > Date.now()) {
+      btns.push('<button class="act danger" onclick="mainProc(\'stop\',true)">确认停止</button>');
+      btns.push('<button class="act" onclick="mainCancel()">取消</button>');
+    } else {
+      btns.push('<button class="act" onclick="mainProc(\'restart\')">重启</button>');
+      btns.push('<button class="act danger" onclick="mainProc(\'stop\')">停止</button>');
+    }
+  }
+  if (!t.toggle && t.kind !== 'self' && !(t.kind === 'process' && t.key !== 'supervisor')) {
+    btns.push('<span class="hint">只读</span>');
+  }
+  var note = t.off_hint && !t.paused ? ' <span class="hint">' + esc(t.off_hint) + '</span>' : '';
+  var note2 = t.note ? ' <span class="hint">' + esc(t.note) + '</span>' : '';
+  if (t.kind === 'self') {
+    note2 += ' <span class="hint">' + (t.managed ? '由守护托管（data/supervisor.json）' : '独立运行（不归守护管）') + '</span>';
+    if (mainStop.until > Date.now()) {
+      note2 += ' <span class="hint">再点一次「确认停止」才会真的停掉整个服务</span>';
+    }
+  }
+  return '<tr>' +
+    '<td><strong>' + esc(t.name) + '</strong><span class="hint" style="margin-left:6px">' + esc(t.key) + '</span>' +
+      note2 + '</td>' +
+    '<td><span class="st ' + cls + '"><span class="dot" style="background:currentColor"></span>' +
+      esc(t.status_label) + '</span></td>' +
+    '<td>' + autoCell(t) + '</td>' +
+    '<td style="font-size:12.5px;color:var(--dim)">' + esc(t.desc) + note + '</td>' +
+    '<td style="font-size:12px;color:var(--dim)">' + esc(taskCounters(t) || '—') + '</td>' +
+    '<td style="font-size:12px;color:var(--dim)">' + (t.last_beat ? ago(t.last_beat) : '—') + '</td>' +
+    '<td style="text-align:right;white-space:nowrap">' + btns.join(' ') + '</td>' +
+    '</tr>';
+}
+
+function renderTasks(j) {
+  if (reboot.until > Date.now()) {
+    if (reboot.mode === 'stop') return;          /* 服务已按请求停止，表格不再有意义 */
+    if (Date.now() - reboot.since < 3000) {      /* 旧进程还活着，等它真的退下去 */
+      $('taskGroups').innerHTML = taskRebootCard();
+      return;
+    }
+    toast('管理台已重启（约 ' + Math.round((Date.now() - reboot.since) / 1000) + ' 秒）');
+    reboot.until = 0;
+    reboot.mode = '';
+  }
+  taskCache = j;
+  var host = $('taskGroups');
+  host.innerHTML = (j.groups || []).map(function (g) {
+    return '<div class="card" style="margin-top:14px;padding:6px 16px 10px">' +
+      '<div class="row" style="gap:10px;margin:10px 0 8px">' +
+        '<div style="font-size:13px;font-weight:600">' + esc(g.name) + '</div>' +
+        '<span class="hint">' + g.tasks.length + ' 项</span>' +
+      '</div>' +
+      '<table><thead><tr>' +
+        '<th style="width:210px">任务</th><th style="width:110px">状态</th>' +
+        '<th style="width:150px">开机自启</th><th>说明</th><th style="width:150px">计数</th>' +
+        '<th style="width:100px">最近心跳</th><th style="width:200px"></th>' +
+      '</tr></thead><tbody>' + g.tasks.map(taskRow).join('') + '</tbody></table>' +
+      '</div>';
+  }).join('');
+  if (j.bot_alive === false) {
+    $('taskHint').textContent = '主循环心跳已超过 3 分钟：主进程可能没在跑，或数据库被别的进程独占。';
+  }
+}
+
+function loadTasks() {
+  if (reboot.mode === 'stop') return;          /* 已经停掉了，别再撞一个不存在的服务 */
+  return api('/api/tasks').then(renderTasks).catch(function (e) {
+    if (reboot.until > Date.now()) {           /* 重启窗口里连不上是正常的，不报错 */
+      $('taskGroups').innerHTML = taskRebootCard();
+      return;
+    }
+    $('taskGroups').innerHTML = '<div class="card" style="margin-top:14px;padding:14px 16px">' +
+      '<span class="st st-failed">进程状态读取失败：' + esc(e.message) + '</span></div>';
+  });
+}
+
+function toggleTask(key, off) {
+  if (off && !confirm('暂停后这个任务不会再执行，需要手动恢复。确定暂停？')) return;
+  api('/api/tasks/toggle', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: key, off: !!off })
+  }).then(function (r) {
+    toast(r.note || '已更新');
+    loadTasks();
+    setTimeout(loadTasks, 1500);
+  }).catch(function (e) { toast('操作失败：' + e.message, true); });
+}
+
+function taskAuto(key, on) {
+  if (taskAutoPending[key]) return;
+  taskAutoPending[key] = true;
+  api('/api/tasks/autostart', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: key, on: !!on })
+  }).then(function (r) {
+    delete taskAutoPending[key];
+    toast(r.note || '已更新');
+    loadTasks();
+  }).catch(function (e) {
+    delete taskAutoPending[key];
+    toast('操作失败：' + e.message, true);
+    loadTasks();                                /* 失败把勾选状态刷回真实值 */
+  });
+}
+
+function taskProc(key, action) {
+  var tip = action === 'stop' ? '确定停止这个进程？' : (action === 'restart' ? '确定重启这个进程？' : null);
+  if (tip && !confirm(tip)) return;
+  api('/api/tasks/process', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key: key, action: action })
+  }).then(function (r) {
+    toast(r.note || (r.alive ? '已' + (action === 'stop' ? '停止' : '启动') : '已提交'));
+    loadTasks();
+    setTimeout(loadTasks, 2500);
+  }).catch(function (e) { toast('操作失败：' + e.message, true); });
+}
+
+/* 主进程（self）：停止要两步 —— 第一次点只换成「确认停止」，第二步才真发请求。
+   重启也走这里：托管时守护会把面板重新拉起来，独立运行时交给 restart_console.ps1。 */
+function mainProc(action, confirmed) {
+  if (action === 'stop' && !confirmed) {
+    mainStop.until = Date.now() + 15000;
+    toast('再点一次「确认停止」才会执行：会关掉整个监控台服务');
+    renderTasks(taskCache);
+    return;
+  }
+  var body = { action: action };
+  if (action === 'stop') body.confirm = true;
+  api('/api/tasks/main', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  }).then(function (r) {
+    mainStop.until = 0;
+    if (action === 'stop') {
+      reboot = { until: Date.now() + 3600000, since: Date.now(), mode: 'stop', note: r.note || '' };
+      clearInterval(state.timer);              /* 服务就要没了，别再每 3 秒撞一次 */
+      $('taskGroups').innerHTML = taskRebootCard();
+      $('taskHint').textContent = '已按请求停止';
+      toast(r.note || '已请求停止');
+    } else {
+      reboot = { until: Date.now() + 90000, since: Date.now(), mode: 'restart', note: r.note || '' };
+      $('taskGroups').innerHTML = taskRebootCard();
+      toast(r.note || '正在重启，几秒后自动连回来');
+      setTimeout(loadTasks, 1200);
+      setTimeout(loadTasks, 3000);
+      setTimeout(loadTasks, 5000);
+      setTimeout(loadTasks, 8000);
+    }
+  }).catch(function (e) { toast('操作失败：' + e.message, true); });
+}
+
+function mainCancel() {
+  mainStop.until = 0;
+  toast('已取消');
+  renderTasks(taskCache);
+}
+
+function taskRebootCard() {
+  var sec = Math.max(0, Math.round((Date.now() - reboot.since) / 1000));
+  var body = reboot.mode === 'stop'
+    ? esc(reboot.note || '') +
+      '<br>要恢复运行：在项目根目录执行 <b>scripts\\restart_console.ps1 -Start</b>' +
+      '；守护托管时也可以用 <b>scripts\\service.ps1 start</b>。'
+    : '已经等了 ' + sec + ' 秒，服务回来后这一页会自动接着刷新。';
+  return '<div class="card" style="margin-top:14px;padding:16px">' +
+    '<div style="font-size:13px;font-weight:600">' +
+      (reboot.mode === 'stop' ? '监控台已停止' : '正在重启监控台主进程…') + '</div>' +
+    '<div class="hint" style="margin-top:8px;line-height:1.7">' + body + '</div></div>';
+}
+
+/* ---------- 切换 ---------- */
+function refresh() {
+  if (reboot.mode === 'stop') return;          /* 已按请求停止，定时刷新没有意义 */
+  loadGlobal();
+  loadStats();            /* 顶部计数与页签无关，每次都刷（2026-11-01） */
+  if (state.tab === 'overview') loadOverview();
+  else if (state.tab === 'subjects') loadSubjects();
+  else if (state.tab === 'events') loadEvents();
+  else if (state.tab === 'weekly') { if (state.weeklyOn) loadWeekly(); }
+  else if (state.tab === 'deliveries') loadDeliveries();
+  else if (state.tab === 'logs') { if ($('logAuto').checked) loadLogs(); }
+  else if (state.tab === 'qq') loadQQ();
+  else if (state.tab === 'tasks') loadTasks();
+  else if (state.tab === 'cleanup') {
+    loadCleanup();
+    if ($('cleanupLogAuto').checked) loadCleanupLogs();
+  }
+}
+function switchTab(name) {
+  if (name === 'weekly' && !state.weeklyOn) name = 'subjects';
+  state.tab = name;
+  document.querySelectorAll('nav button').forEach(function (b) {
+    b.classList.toggle('on', b.dataset.tab === name);
+  });
+  document.querySelectorAll('section').forEach(function (s) {
+    s.classList.toggle('on', s.id === 'tab-' + name);
+  });
+  refresh();
+  clearInterval(state.timer);
+  state.timer = setInterval(refresh, 3000);   /* 统一 3 秒：右上角计数要"实时" */
+}
+document.querySelectorAll('nav button').forEach(function (b) {
+  b.onclick = function () { switchTab(b.dataset.tab); };
+});
+
+/* ---------- 右上角「设置」菜单：监控室 / 更新检查 / 关于（2026-11-10） ---------- */
+var setOpen = false;
+function setMenu(on) {
+  setOpen = !!on;
+  var m = $('settings-menu'), b = $('settings-btn');
+  if (m) m.classList.toggle('hide', !setOpen);
+  if (b) b.setAttribute('aria-expanded', setOpen ? 'true' : 'false');
+}
+$('settings-btn').onclick = function (ev) {
+  ev.stopPropagation();
+  setMenu(!setOpen);
+};
+$('settings-menu').onclick = function (ev) {
+  var it = ev.target.closest ? ev.target.closest('.set-item') : null;
+  if (!it) return;
+  setMenu(false);
+  var act = it.getAttribute('data-set');
+  if (act === 'check') openUpdate();
+  else if (act === 'about') openAbout();
+  else if (act === 'proxy') openProxy();
+  /* livedeck：交给链接默认行为，新标签页打开 8760 */
+};
+/* ---------- 关于弹窗（2026-11-10）：版本号从 /api/version 取，前端不写死（AGENTS R5） ---------- */
+var aboutLoaded = false;
+function openAbout() {
+  $('aboutModal').classList.add('show');
+  loadAboutVersion();
+}
+function closeAbout() { $('aboutModal').classList.remove('show'); }
+function loadAboutVersion() {
+  if (aboutLoaded) return;
+  aboutLoaded = true;
+  api('/api/version').then(function (j) {
+    var el = $('aboutVer');
+    if (el && j.version) el.textContent = 'v' + j.version;
+  }).catch(function () { aboutLoaded = false; });
+}
+$('aboutClose').onclick = closeAbout;
+$('aboutModal').onclick = function (ev) { if (ev.target === this) closeAbout(); };
+/* ---------- 版本更新 ---------- */
+var updatePoll = null;
+var updateTarget = '';
+var updateReady = false;
+function showUpdateStatus(j) {
+  var active = ['queued', 'downloading', 'applying', 'starting'].indexOf(j.state) >= 0;
+  if (active || ['complete', 'failed', 'rolled_back'].indexOf(j.state) >= 0) {
+    $('updStatus').textContent = j.message || '正在准备更新…';
+    $('updStatus').className = 'upd-status ' + (active ? 'upd-new' :
+      (j.state === 'complete' ? 'upd-ok' : 'upd-fail'));
+    updateReady = j.state === 'complete';
+    $('updApply').hidden = !updateReady;
+    $('updApply').textContent = updateReady ? '刷新页面' : '立即更新';
+    $('updApply').disabled = false;
+    if (j.target) $('updLatest').textContent = 'v' + j.target;
+  }
+  return active;
+}
+function pollUpdate(deadline) {
+  clearTimeout(updatePoll);
+  function again() {
+    if (Date.now() < deadline) {
+      updatePoll = setTimeout(function () { pollUpdate(deadline); }, 1500);
+    } else {
+      $('updStatus').textContent = '尚未取得更新结果，请稍后重新打开此窗口查看';
+    }
+  }
+  api('/api/update/status').then(function (j) {
+    if (showUpdateStatus(j)) again();
+  }).catch(again);
+}
+function applyUpdate() {
+  if (updateReady) { location.reload(); return; }
+  if (!updateTarget || !confirm('更新会短暂重启管理台和后台进程。继续？')) return;
+  $('updApply').disabled = true;
+  api('/api/update/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target: updateTarget }) }).then(function (j) {
+      showUpdateStatus(j);
+      pollUpdate(Date.now() + 240000);
+    }).catch(function (e) {
+      $('updApply').disabled = false;
+      $('updStatus').textContent = e.message;
+    });
+}
+function openUpdate() {
+  $('updModal').classList.add('show');
+  clearTimeout(updatePoll);
+  updateReady = false;
+  updateTarget = '';
+  $('updApply').disabled = false;
+  $('updApply').hidden = true;
+  $('updApply').textContent = '立即更新';
+  $('updStatus').textContent = '正在检查…';
+  $('updStatus').className = 'upd-status';
+  $('updCur').textContent = '—';
+  $('updLatest').textContent = '—';
+  /* 直接用 fetch：检查失败时服务端仍回 200 + ok:false + current，api() 会把 ok:false 当异常抛掉 */
+  api('/api/update/status').then(function (state) {
+    $('updHint').textContent = state.available ? '更新会下载并校验增量包，随后短暂重启。' : state.reason;
+    if (showUpdateStatus(state)) {
+      pollUpdate(Date.now() + 240000);
+      return null;
+    }
+    if (state.state === 'complete' || state.state === 'rolled_back' || state.state === 'failed') {
+      $('updHint').textContent = state.message;
+    }
+    return fetch('/api/update');
+  }).then(function (r) {
+    if (!r) return null;
+    return r.text().then(function (t) {
+      var j = {};
+      try { j = JSON.parse(t); } catch (e) { j = { ok: false, error: '返回不是 JSON' }; }
+      return j;
+    });
+  }).then(function (j) {
+    if (!j) return;
+    var st = $('updStatus');
+    if (j && j.current) $('updCur').textContent = 'v' + j.current;
+    if (j && j.url) $('updLink').href = j.url;
+    if (j && j.ok) {
+      $('updLatest').textContent = 'v' + j.latest;
+      if (j.has_update) {
+        st.textContent = '发现新版本 v' + j.latest;
+        st.className = 'upd-status upd-new';
+        if (j.online_update) {
+          updateReady = false;
+          updateTarget = j.latest;
+          $('updApply').textContent = '立即更新';
+          $('updApply').hidden = false;
+        }
+      } else {
+        st.textContent = '已是最新版本';
+        st.className = 'upd-status upd-ok';
+      }
+    } else {
+      st.textContent = '检查失败：' + ((j && j.error) || '仓库不可访问');
+      st.className = 'upd-status upd-fail';
+    }
+  }).catch(function () {
+    $('updStatus').textContent = '检查失败：服务端没有响应';
+    $('updStatus').className = 'upd-status upd-fail';
+  });
+}
+function closeUpdate() { $('updModal').classList.remove('show'); }
+$('updApply').onclick = applyUpdate;
+$('updClose').onclick = closeUpdate;
+$('updOk').onclick = closeUpdate;
+$('updModal').onclick = function (ev) { if (ev.target === this) closeUpdate(); };
+/* ---------- 网络代理弹窗（2026-11-12）：读写 config/proxy.json，服务端负责校验与写环境变量 ---------- */
+var proxyLoaded = false;
+function proxyTag(text) { var t = $('proxyTag'); if (t) t.textContent = text; }
+function proxyStatus(text, kind) {
+  var el = $('proxyStatus');
+  el.textContent = text;
+  el.className = 'proxy-status' + (kind ? ' ' + kind : '');
+}
+function proxyMode() {
+  var list = document.querySelectorAll('input[name=proxyMode]');
+  for (var i = 0; i < list.length; i++) if (list[i].checked) return list[i].value;
+  return 'system';
+}
+function proxyModeSet(mode) {
+  var list = document.querySelectorAll('input[name=proxyMode]');
+  for (var i = 0; i < list.length; i++) list[i].checked = (list[i].value === mode);
+}
+/* 菜单右侧小字：三种模式各一句，别让用户以为只有「开 / 关」 */
+function proxyTagOf(mode) { return mode === 'custom' ? '自定义' : (mode === 'none' ? '不使用' : '跟随系统'); }
+function fillProxy(j) {
+  var mode = j.mode || 'system';
+  proxyModeSet(mode);
+  $('proxyUrl').value = j.url || '';
+  $('proxyUrl').disabled = mode !== 'custom';
+  proxyTag(proxyTagOf(mode));
+}
+/* 页面加载就把菜单右侧的「未设置 / 已开启」刷对，不用等用户点开 */
+function loadProxyTag() {
+  if (proxyLoaded) return;
+  proxyLoaded = true;
+  api('/api/proxy').then(function (j) {
+    proxyTag(proxyTagOf(j.mode || 'system'));
+  }).catch(function () { proxyLoaded = false; });
+}
+function openProxy() {
+  $('proxyModal').classList.add('show');
+  proxyStatus('读配置中…');
+  api('/api/proxy').then(function (j) {
+    fillProxy(j);
+    proxyStatus(j.mode === 'custom' ? ('已保存：' + j.url)
+      : (j.mode === 'none' ? '当前：不使用代理' : '当前：使用系统代理'));
+  }).catch(function (e) {
+    proxyStatus('读配置失败：' + (e && e.message ? e.message : '服务端没有响应'), 'fail');
+  });
+}
+function closeProxy() { $('proxyModal').classList.remove('show'); }
+var proxyRadios = document.querySelectorAll('input[name=proxyMode]');
+for (var pi = 0; pi < proxyRadios.length; pi++) {
+  proxyRadios[pi].onchange = function () {
+    $('proxyUrl').disabled = proxyMode() !== 'custom';
+    if (proxyMode() === 'custom') $('proxyUrl').focus();
+  };
+}
+$('proxyClose').onclick = closeProxy;
+$('proxyCancel').onclick = closeProxy;
+$('proxyModal').onclick = function (ev) { if (ev.target === this) closeProxy(); };
+$('proxyTest').onclick = function () {
+  var mode = proxyMode();
+  var url = ($('proxyUrl').value || '').trim();
+  if (mode === 'none') { proxyStatus('当前是「不使用代理」，不用测试', 'fail'); return; }
+  if (mode === 'custom' && !url) { proxyStatus('先填代理地址，例如 http://127.0.0.1:7890', 'fail'); return; }
+  proxyStatus(mode === 'custom' ? '正在通过代理访问 Gitee…' : '正在按系统代理访问 Gitee…');
+  api('/api/proxy/test', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                           body: JSON.stringify({ mode: mode, url: url }) }).then(function (j) {
+    if (j && j.passed) proxyStatus('连接成功（HTTP ' + j.status + '，' + j.ms + ' ms）', 'ok');
+    else proxyStatus(((j && j.error) || '连接失败：未知原因'), 'fail');
+  }).catch(function (e) {
+    proxyStatus('连接失败：' + (e && e.message ? e.message : '服务端没有响应'), 'fail');
+  });
+};
+$('proxySave').onclick = function () {
+  var body = { mode: proxyMode(), url: ($('proxyUrl').value || '').trim() };
+  proxyStatus('保存中…');
+  api('/api/proxy', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(body) }).then(function (j) {
+    fillProxy(j);
+    var head = j.mode === 'custom' ? ('已保存：' + j.url)
+      : (j.mode === 'none' ? '已保存：不使用代理' : '已保存：使用系统代理');
+    proxyStatus(head + '；' + (j.note || '已生效'), 'ok');
+  }).catch(function (e) {
+    proxyStatus('保存失败：' + (e && e.message ? e.message : '服务端没有响应'), 'fail');
+  });
+};
+loadProxyTag();
+document.addEventListener('click', function (ev) {
+  if (setOpen && !(ev.target.closest && ev.target.closest('.setwrap'))) setMenu(false);
+});
+$('addBtn').onclick = addSubject;
+$('addInput').onkeydown = function (e) { if (e.key === 'Enter') addSubject(); };
+$('grpFilter').onchange = function () {
+  if (this.value === '__newg') {           /* 下拉里的「＋ 新建分组…」：先复原，再问名字 */
+    this.value = state.grpLast || '__all';
+    createGroup();
+    return;
+  }
+  state.grpLast = this.value;
+  state.sel = {};
+  loadSubjects();
+};
+$('selAll').onchange = function () { selAllToggle(this.checked); };
+$('bMove').onclick = batchMove;
+$('bRemove').onclick = function () { batchSubjects('remove'); };
+$('bClear').onclick = clearSel;
+$('grpExpandAll').onclick = function () { toggleAllGrp(false); };
+$('grpCollapseAll').onclick = function () { toggleAllGrp(true); };
+$('grpRename').onclick = renameGroup;
+$('grpDelete').onclick = deleteGroup;
+$('evFilter').onchange = function () { state.evUid = Number(this.value) || 0; loadEvents(); };
+$('dlFilter').onchange = loadDeliveries;
+$('wkPrev').onclick = function () { wk.week = wk.cur ? wk.cur.prev : ''; loadWeekly(); };
+$('wkNext').onclick = function () { wk.week = wk.cur ? wk.cur.next : ''; loadWeekly(); };
+$('wkToday').onclick = function () { wk.week = ''; loadWeekly(); };
+$('wkPushSave').onclick = savePushAt;
+$('wkPushAt').onkeydown = function (ev) { if (ev.key === 'Enter') savePushAt(); };
+$('wkPick').onchange = function () { wk.week = this.value; loadWeekly(); };
+$('wkCands').onclick = function (ev) {
+  var b = ev.target.closest('button[data-scope]');
+  if (b) wkSetScope([b.dataset.eid], b.dataset.scope);
+};
+$('wkCands').addEventListener('change', function (ev) {
+  var cb = ev.target.closest('input[data-pick]');
+  if (!cb) return;
+  var id = cb.dataset.pick;
+  if (cb.checked) wkSel[id] = 1; else delete wkSel[id];
+  var card = cb.closest('.wkcand');
+  if (card) card.classList.toggle('picked', cb.checked);
+  wkSyncBulk();
+});
+$('wkAll').onchange = function () {
+  if (this.checked) {
+    (wk.cur && wk.cur.candidates ? wk.cur.candidates : []).forEach(function (c) {
+      wkSel[c.event_id] = 1;
+    });
+  } else {
+    wkSel = {};
+  }
+  loadWeekly();
+};
+$('wkBulkWeek').onclick = function () { wkSetScope(wkSelIds(), 'week'); };
+$('wkBulkSingle').onclick = function () { wkSetScope(wkSelIds(), 'single'); };
+$('wkBulkNone').onclick = function () { wkSetScope(wkSelIds(), 'none'); };
+$('wkCacheClean').onclick = function () {
+  if (!confirm('删掉已判定候选的本地图片？待确认的会保留，图片以后需要时能重新下载。')) return;
+  api('/api/weekly/cache/clean', { method: 'POST', body: JSON.stringify({ force: false }) })
+    .then(function (r) {
+      toast('已清理 ' + (r.removed || 0) + ' 张，释放 ' + bytes(r.bytes || 0));
+      loadWeekly();
+    }).catch(function (e) { toast(e.message, true); });
+};
+$('weekGrid').onclick = function (ev) {
+  var ed = ev.target.closest('.wkedit');
+  if (ed) {
+    ev.preventDefault();
+    wkOpenModal('edit', wkEntries[Number(ed.dataset.k)]);
+    return;
+  }
+  var ad = ev.target.closest('.wkadd');
+  if (ad) { ev.preventDefault(); wkOpenModal('add', null, ad.dataset.day); }
+};
+$('wkMCancel').onclick = wkCloseModal;
+$('wkMSave').onclick = wkSaveModal;
+$('wkMDel').onclick = wkDeleteEntry;
+$('wkModal').onclick = function (ev) { if (ev.target === this) wkCloseModal(); };
+$('wkProgAdd').onclick = function () { wkOpenProg(null); };
+$('wkPCancel').onclick = wkCloseProg;
+$('wkPSave').onclick = wkSaveProg;
+$('wkPDel').onclick = wkDelProg;
+$('wkProgModal').onclick = function (ev) { if (ev.target === this) wkCloseProg(); };
+$('wkProgs').onclick = function (ev) {
+  var chip = ev.target.closest('.pchip');
+  if (!chip) return;
+  var list = (wk.cur && wk.cur.programs) || [];
+  var p = list.filter(function (x) { return String(x.program_id) === chip.dataset.pid; })[0];
+  if (p) wkOpenProg(p);
+};
+document.addEventListener('keydown', function (ev) {
+  if (ev.key === 'Escape') { wkCloseModal(); wkCloseProg(); closeAbout(); closeUpdate(); closeProxy(); if (setOpen) setMenu(false); }
+});
+$('dlRefresh').onclick = loadDeliveries;
+$('logRefresh').onclick = loadLogs;
+$('sessSave').onclick = saveAuth;
+$('sessInput').onkeydown = function (e) { if (e.key === 'Enter') saveAuth(); };
+$('sessClear').onclick = clearAuth;
+$('svcRestart').onclick = restartService;
+$('feedModeSave').onclick = feedSaveMode;
+$('feedNow').onclick = function () { feedAction('feed', '立即取流'); };
+$('feedSweep').onclick = function () { feedAction('sweep', '立即补漏'); };
+$('feedSync').onclick = function () { feedAction('sync', '同步关注'); };
+$('qqSave').onclick = saveQqCreds;
+$('qqVerify').onclick = qqVerifyCreds;
+$('qqRestart').onclick = function () { guideStack('pusher'); };
+$('qqListen').onclick = qqListenStart;
+$('qqStop').onclick = qqListenStop;
+$('qqClearIds').onclick = qqClearIds;
+$('qqSaveIds').onclick = qqSaveIds;
+$('qqTest').onclick = qqTestSend;
+$('qqAppId').onkeydown = function (e) { if (e.key === 'Enter') saveQqCreds(); };
+$('qqSecret').onkeydown = function (e) { if (e.key === 'Enter') saveQqCreds(); };
+$('qqTestText').onkeydown = function (e) { if (e.key === 'Enter') qqTestSend(); };
+$('qrStart').onclick = qrStart;
+$('qrCancel').onclick = function () { qrStop(); $('qrBox').style.display = 'none'; };
+['logDate', 'logTag', 'logLevel', 'logLines'].forEach(function (id) {
+  $(id).onchange = loadLogs;
+});
+$('logQ').onkeydown = function (ev) { if (ev.key === 'Enter') loadLogs(); };
+$('cleanupSave').onclick = saveCleanup;
+$('cleanupScan').onclick = cleanupScan;
+$('cleanupRun').onclick = cleanupRun;
+$('cleanupToggle').onclick = cleanupToggle;
+$('cleanupStart').onclick = cleanupStart;
+$('cleanupStop').onclick = cleanupStop;
+$('cleanupRestart').onclick = cleanupRestart;
+$('cleanupAutostartBtn').onclick = cleanupAutostart;
+$('cleanupLogRefresh').onclick = loadCleanupLogs;
+$('cleanupLogLevel').onchange = loadCleanupLogs;
+$('cleanupLogQ').onkeydown = function (ev) { if (ev.key === 'Enter') loadCleanupLogs(); };
+['cleanupRoot', 'cleanupMax', 'cleanupMinFree', 'cleanupKeep', 'cleanupDays', 'cleanupTime'].forEach(function (id) {
+  $(id).oninput = function () {
+    cleanupState.dirty = true;
+    $('cleanupDirtyHint').textContent = '有未保存的修改';
+  };
+});
+$('cleanupDry').onchange = function () {
+  cleanupState.dirty = true;
+  $('cleanupDirtyHint').textContent = '有未保存的修改';
+};
+/* ---------- 接入指引（2026-11-11）：首次打开自动弹，右上角按钮随时重看 ---------- */
+var GUIDE_KEY = 'bbot_guide_seen';
+var guideTimer = null;
+var guideDefaultText = {};
+var guideSubjectCount = null;
+
+function guideSeen() {
+  try { return localStorage.getItem(GUIDE_KEY) === '1'; } catch (e) { return false; }
+}
+function guideMarkSeen() {
+  try { localStorage.setItem(GUIDE_KEY, '1'); } catch (e) {}
+}
+function guideSet(step, ok, badge, html) {
+  var li = $(step);
+  if (!li) return;
+  li.className = 'gs' + (ok ? ' ok' : '');
+  var b = $(step + 'Badge');
+  if (b) b.textContent = badge;
+  if (html) {
+    var t = $(step + 'Text');
+    if (t) t.innerHTML = html;
+  }
+}
+function guideRenderSubjects() {
+  var c = guideSubjectCount;
+  if (!c) return;
+  if (c.on > 0) {
+    guideSet('gsSubj', true, c.on + ' 个在监控', '名单里共 <b>' + c.total + '</b> 个号，其中 <b>' +
+      c.on + '</b> 个在监控。想加人就去「监控名单」页按 UID 或主播名添加。');
+  } else {
+    guideSet('gsSubj', false, '还没有名单', '名单是空的：先去「监控名单」页添加要盯的主播（UID 或名字都行），否则没有东西可采。');
+  }
+}
+function guideRoleLine(role, r) {
+  var label = (r && r.label) || (role === 'collector' ? '采集进程' : '推送进程');
+  if (!r) return label + '：未托管';
+  if (r.alive) return label + '：<b style="color:var(--green)">运行中</b>（pid ' + r.pid + '）';
+  if (r.wanted) return label + '：<b>正在启动</b>' + (r.last_error ? '（' + esc(r.last_error) + '）' : '');
+  return label + '：<b>未启动</b>' + (r.manual === 'off' ? '（手动关闭）' : '');
+}
+function guideRender(j) {
+  var bind = (j && j.bindings) || {};
+  var bili = bind.bili || {};
+  var qq = bind.qq || {};
+  var roles = (j && j.roles) || {};
+  var hosted = !!(j && j.available);
+  var dot = $('guideDot');
+  if (dot) dot.className = 'gdot' + ((bili.bound && qq.bound) ? ' ok' : '');
+
+  if (bili.bound) {
+    guideSet('gsBili', true, '已绑定', '已绑定：SESSDATA <code>' + esc(bili.sessdata || '') +
+      '</code>。要换账号，重新扫码登录即可。');
+  } else {
+    guideSet('gsBili', false, '待完成', guideDefaultText.gsBili);
+  }
+  if (qq.bound) {
+    guideSet('gsQQ', true, '已绑定', '已绑定：AppID <code>' + esc(qq.app_id || '') +
+      '</code>，推送目标 <code>' + esc(qq.openid || '') + '</code>。');
+  } else {
+    guideSet('gsQQ', false, '待完成', guideDefaultText.gsQQ);
+  }
+  if (guideSubjectCount === null) {
+    api('/api/subjects').then(function (s) {
+      var list = (s && s.subjects) || [];
+      var on = 0;
+      for (var i = 0; i < list.length; i++) { if (list[i].enabled) on++; }
+      guideSubjectCount = { total: list.length, on: on };
+      guideRenderSubjects();
+    }).catch(function () {});
+  } else {
+    guideRenderSubjects();
+  }
+
+  var bothAlive = !!(roles.collector && roles.collector.alive && roles.pusher && roles.pusher.alive);
+  var wantAny = !!((roles.collector && roles.collector.wanted) || (roles.pusher && roles.pusher.wanted));
+  var html = guideRoleLine('collector', roles.collector) + '<br>' + guideRoleLine('pusher', roles.pusher);
+  if (!hosted) {
+    html += '<br><span style="color:var(--amber)">当前这个监控台没有托管能力（由 run_bot.py --web 起的）；' +
+      '用 install.cmd 或 scripts/service.ps1 启动才会有自动开关。</span>';
+  } else if (!bili.bound && !qq.bound) {
+    html += '<br>两个账号都还没绑，所以两个进程都保持关闭——页面服务不受影响。';
+  }
+  guideSet('gsProc', bothAlive, bothAlive ? '都在运行' : (wantAny ? '正在启动' : '未运行'), html);
+
+  var hint = $('guideHint');
+  if (hint) {
+    hint.textContent = (bili.bound && qq.bound)
+      ? '两个账号都绑好了；之后改名单、开关推送都不用重装。'
+      : '绑好哪一项，对应进程就会自己起来；这里每 5 秒刷新一次。';
+  }
+}
+function guideRefresh() {
+  api('/api/stack').then(function (j) {
+    guideRender(j);
+  }).catch(function (e) {
+    var hint = $('guideHint');
+    if (hint) hint.textContent = '读取绑定状态失败：' + (e && e.message ? e.message : e);
+  });
+}
+function openGuide(skipRefresh) {
+  var box = $('guideModal');
+  if (!box) return;
+  box.classList.add('show');
+  if (!skipRefresh) guideRefresh();
+  if (guideTimer) clearInterval(guideTimer);
+  guideTimer = setInterval(function () {
+    if (box.classList.contains('show')) guideRefresh();
+  }, 5000);
+}
+function closeGuide() {
+  var box = $('guideModal');
+  if (box) box.classList.remove('show');
+  if (guideTimer) { clearInterval(guideTimer); guideTimer = null; }
+  guideMarkSeen();
+}
+function guideGo(tab, focus, act) {
+  closeGuide();
+  switchTab(tab);
+  setTimeout(function () {
+    if (act === 'qr' && typeof qrStart === 'function') qrStart();
+    var el = focus ? $(focus) : null;
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'center' });
+    if (el && el.focus && act !== 'qr') { try { el.focus(); } catch (e) {} }
+  }, 160);
+}
+function guideStack(role) {
+  api('/api/stack/action', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: role, action: 'restart' }) })
+    .then(function (j) {
+      toast((role === 'collector' ? '采集进程' : '推送进程') + '重启请求已发出');
+      guideRender(j);
+      setTimeout(guideRefresh, 2500);
+    })
+    .catch(function (e) { toast('重启失败：' + e.message, true); });
+}
+function guideAutoOpen() {
+  if (guideSeen()) return;
+  api('/api/stack').then(function (j) {
+    var bind = (j && j.bindings) || {};
+    guideRender(j);
+    if (bind.bili && bind.bili.bound && bind.qq && bind.qq.bound) {
+      guideMarkSeen();          // 老用户已经绑好了，不再打扰
+      return;
+    }
+    openGuide(true);            // 已经拿过状态，省一次请求
+  }).catch(function () {});
+}
+['gsBili', 'gsQQ', 'gsSubj', 'gsProc'].forEach(function (k) {
+  var el = $(k + 'Text');
+  if (el) guideDefaultText[k] = el.innerHTML;
+});
+$('guideBtn').onclick = function () { openGuide(); };
+$('guideClose').onclick = closeGuide;
+$('guideOk').onclick = closeGuide;
+$('guideRefresh').onclick = guideRefresh;
+$('guideModal').addEventListener('click', function (e) {
+  if (e.target === this) { closeGuide(); return; }
+  var t = e.target;
+  var btn = (t && t.closest) ? t.closest('button') : t;
+  if (!btn || !btn.getAttribute) return;
+  var go = btn.getAttribute('data-guide-go');
+  var role = btn.getAttribute('data-guide-stack');
+  if (go) guideGo(go, btn.getAttribute('data-guide-focus'), btn.getAttribute('data-guide-do'));
+  else if (role) guideStack(role);
+});
+
+loadFeature().then(function () {
+  switchTab((location.hash || '#overview').slice(1).split('/')[0]);
+  guideAutoOpen();
+});
+</script>
+
+</body>
+</html>

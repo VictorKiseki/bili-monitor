@@ -1,0 +1,3 @@
+# Optional extras (not required to run). Installed into runtime/ by scripts/build_runtime.py; failures are tolerated.
+brotli>=1.1.0
+psutil>=5.9

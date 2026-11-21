@@ -1,0 +1,33 @@
+{
+  "_说明": "要监控的 B 站主播名单。每个主播至少给 uid（B 站用户号）；room_id 填直播间号，填 0 或省略也行，程序会自动查。",
+  "_字段": {
+    "uid": "B 站用户号，空间地址 space.bilibili.com/<uid> 里的那串数字",
+    "room_id": "直播间号 live.bilibili.com/<room_id>；不知道就写 0",
+    "name": "显示名，可随便起，推送消息里用它",
+    "group": "分组名，用于管理台筛选与周报归类，可省略",
+    "enabled": "false 表示暂时不监控这个主播，可省略"
+  },
+  "subjects": [
+    {
+      "uid": 2,
+      "room_id": 3,
+      "name": "示例主播（把它换成你要监控的人）",
+      "group": "示例分组"
+    }
+  ],
+  "poll": {
+    "live_interval_s": 45,
+    "dynamic_interval_s": 240,
+    "mode": "auto",
+    "feed_interval_s": 60,
+    "feed_pages": 3,
+    "feed_burst_threshold": 15,
+    "feed_burst_pages": 3,
+    "sweep_hours": 6,
+    "sweep_max_age_min": 720,
+    "sweep_push_late": true,
+    "sweep_late_max": 30,
+    "follow_sync": true,
+    "follow_sync_hours": 6
+  }
+}

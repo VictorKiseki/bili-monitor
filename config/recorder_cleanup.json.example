@@ -1,0 +1,19 @@
+{
+  "_说明": "录像清理（可选）。使用前请在监控台填写已存在的录像目录。",
+  "root": "",
+  "max_gb": 100.0,
+  "min_free_gb": 10.0,
+  "keep_recent_minutes": 60.0,
+  "interval_days": 1,
+  "run_time": "20:00",
+  "review_wait_minutes": 60,
+  "protected_dir": "",
+  "enabled": false,
+  "managed_dir_pattern": "^\\d+-",
+  "sidecar_suffixes": [
+    ".xml"
+  ],
+  "log_file": "logs/recorder_cleanup.log",
+  "dry_run": true,
+  "interval_s": 86400
+}

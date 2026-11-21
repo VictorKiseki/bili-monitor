@@ -1,0 +1,7 @@
+{
+  "_说明": "网络代理示例。平时不用手动复制：在监控台 / 监控室右上角「设置 → 网络代理」里点选并保存，程序会自己生成 config/proxy.json。",
+  "_字段": "mode=三种模式 none（不使用代理，强制直连）/ system（使用系统代理，默认）/ custom（自定义，填 url）；url=自定义代理地址（只支持 http:// 或 https://，socks5 未内置）；no_proxy=不走代理的地址，本机服务必须留着",
+  "mode": "system",
+  "url": "",
+  "no_proxy": "127.0.0.1,localhost,::1"
+}

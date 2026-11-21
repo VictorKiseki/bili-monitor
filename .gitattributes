@@ -1,0 +1,24 @@
+# 统一换行：文档与代码用 LF，Windows 脚本用 CRLF（BOM 由 release.py check 把关）
+* text=auto
+
+*.md    text eol=lf
+*.py    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+*.html  text eol=lf
+*.example text eol=lf
+
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+*.ps1   text eol=crlf
+*.vbs   text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.zip binary
+*.db  binary

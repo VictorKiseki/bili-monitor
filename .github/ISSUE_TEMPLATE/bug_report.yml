@@ -1,0 +1,90 @@
+name: Bug 反馈
+description: 监控/推送/管理台/识别结果不对、报错、崩溃
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。为了让问题能被复现，请尽量把下面每一项都填上。
+
+        > **不要把真实凭据贴出来**：`SESSDATA`、`QQBOT_APP_SECRET`、`.p0_ids.json` 里的 openid 请替换成 `xxx`。
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 一句话说清现象，以及你期望的结果
+      placeholder: 例如：日程 AI 识别跑完提示 saved=0，但候选列表里还有 5 条待确认
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开 http://127.0.0.1:8765 「日程表」
+        2. 点「立即识别」
+        3. 看到的提示是 ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: "VERSION 文件的内容，或 python scripts/release.py show 的输出"
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 涉及模块
+      multiple: true
+      options:
+        - 抓取 / 登录（collector）
+        - 事件判定 / 主循环（core/watcher）
+        - 卡片图与渲染（notifications）
+        - QQ 机器人发送 / 绑定（channels）
+        - 日程识别（core/weekly、Agent、模型）
+        - 管理台 / 前端（web）
+        - 安装 / 自检 / 发版（scripts）
+        - 其它
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境
+      placeholder: |
+        Windows 11 23H2
+        Python 3.12.7（.venv）
+        依赖：httpx 0.27.0 / Pillow 13.0.0 / websockets 17.3 / websocket-client 1.8.0 / segno 1.6.6
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 报错
+      description: 相关日志行、traceback、或管理台「日志」页的截图
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: preflight
+    attributes:
+      label: 自检输出
+      description: '.venv\Scripts\python.exe scripts\preflight.py 的输出（可选，但很有帮助）'
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 自查
+      options:
+        - label: 已搜索过现有 issue，没有重复
+          required: true
+        - label: 已确认日志里没有真实凭据（SESSDATA / AppSecret / openid）
+          required: true
+        - label: 已尝试升级到最新版本
+          required: false

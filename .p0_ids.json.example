@@ -1,0 +1,4 @@
+{
+  "_说明": "推送目标的 QQ openid。不要手填：启动机器人后私聊它一句话，用 python scripts/p0_check.py listen 自动抓取并写入 .p0_ids.json。",
+  "user_openid": ""
+}

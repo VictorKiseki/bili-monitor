@@ -1,0 +1,74 @@
+# ---- 运行期数据 / 日志 / 产物 ----
+data/
+logs/
+out/
+# 只忽略仓库根的截图目录；docs/img/ 是随文档分发的配图
+/img/
+*.log
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# ---- 凭据（严禁入库）----
+config/*.env
+config/*.json
+BBOT.env
+*.env
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+# 自带的 CPython 嵌入式运行时（约 45MB / 800 文件）：由 scripts/build_runtime.py 生成，随发布包分发但不入库
+runtime/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- 本地临时/工具产物 ----
+.dsh-ops/
+.dsh-ops-update-*.lock
+.research/
+nul
+*.tmp
+*.bak
+Thumbs.db
+desktop.ini
+# 输入法等外部程序偶尔会把状态文件丢到工作目录，别误提交
+/user.config
+/share.config
+/inputstat.dat
+/sgim_punc.bin
+/*.stat
+
+# ---- 个人 openid / 发布产物 ----
+.p0_ids.json
+dist/
+*.zip
+SHA256SUMS
+pip-unpack-*/
+pip-metadata-*/
+pip-*/
+/tmp*/
+pipout.txt
+# 只忽略仓库根的测试临时目录（不能写成 tmp*，否则会误伤 shared/tmpdir.py）
+/tmp*
+*.whl
+*.egg-info/
+
+# ---- 测试临时目录 ----
+# 测试临时目录默认落系统 Temp（快盘）；测试环境显式要求时才用仓库内 .tmp/：
+#   BBOT_USE_PROJECT_TMP=1  → 落仓库内 .tmp/
+#   BBOT_TMPDIR=<路径>      → 落指定目录（相对路径按仓库根解析）
+# 下面几行是旧版 tempfile 回落到一级目录时的兜底
+/.tmp/
+harness-*/
+agent-*/
+ai-cfg-*/
+fsync-*/
+livedeck-edge-*/
