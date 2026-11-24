@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   unit-tests:
-    name: 单元测试 (Windows / Python ${{ matrix.python }})
+    name: 源码检查 (Windows / Python ${{ matrix.python }})
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -32,7 +32,10 @@ jobs:
       - name: 语法编译（所有包）
         run: python -m compileall -q collector core shared store notifications channels web scripts livedeck
 
-      - name: 单元测试
+      - name: 运行公开快照离线测试
+        run: python -m unittest discover -s .github/tests -v
+
+      - name: 运行开发线全量单元测试
         if: hashFiles('tests/test_*.py') != ''
         run: python scripts/run_tests.py -v
 
@@ -70,14 +73,14 @@ jobs:
           Expand-Archive -Path $zip.FullName -DestinationPath pkg -Force
           Set-Location (Get-ChildItem pkg -Directory | Select-Object -First 1).FullName
 
-          # 包里不带真实名单，拿模板顶上
-          Copy-Item config/subjects.json.example config/subjects.json
-
           & ./runtime/python.exe scripts/preflight.py
           if ($LASTEXITCODE -ne 0) { throw "preflight 有阻塞项（退出码 $LASTEXITCODE）" }
 
-          & ./runtime/python.exe scripts/run_bot.py --once --channel echo --no-cards --db ci-smoke.db
+          # 空名单让机器人跑完一轮启动、读写库和退出，整个过程无需连接 B 站。
+          Set-Content -LiteralPath config/ci-subjects.json -Value '{"subjects":[]}' -Encoding utf8NoBOM
+          & ./runtime/python.exe scripts/run_bot.py --subjects config/ci-subjects.json --poll-mode per_user --once --channel echo --no-cards --db ci-smoke.db
           if ($LASTEXITCODE -ne 0) { throw "run_bot 冒烟失败（退出码 $LASTEXITCODE）" }
+          if (-not (Test-Path -LiteralPath ci-smoke.db -PathType Leaf)) { throw "run_bot 冒烟未创建数据库" }
 
   lint-frontend:
     name: 内联 JS 语法（web/index.html）

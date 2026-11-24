@@ -61,6 +61,10 @@ def ensure_dependencies(required=REQUIRED_DEPENDENCIES, exit_code: int = 2) -> N
 
 
 if __name__ == "__main__":
+    # Windows 重定向输出时也要能写中文日志和依赖提示。
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     ensure_dependencies()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

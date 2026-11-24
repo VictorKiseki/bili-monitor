@@ -96,7 +96,8 @@
 ## 3. 提交与分支
 
 - 提交信息：`type(scope): 一句话说清做了什么`，正文写**为什么**这么改（`feat`/`fix`/`docs`/`test`/`refactor`/`chore`/`perf`）。
-- 业务改动只提交到 `master`；`opensource` 只接受「整批确认后的快照」，按树同步（`git read-tree master^{tree}` → 剔除 `tests/` 与 `scripts/selftest_*.py` → `commit-tree`），不走 merge——两条线没有共同祖先，且发布线不含测试文件，流程见 [docs/34](docs/34-开源发布清单.md) §9。
+- 业务改动只提交到 `master`；`opensource` 只接受「整批确认后的快照」，按树同步（`git read-tree master^{tree}` → 剔除 `tests/` 与 `scripts/selftest_*.py` → `commit-tree`），不走 merge。流程见 [docs/34](docs/34-开源发布清单.md) §9。
+  `.github/tests/` 的公开 CI 用例只用合成数据和公开模板，随快照同步。
 - 一个 PR 做一件事；顺手发现的问题单独开 PR。
 - 协作细节（环境准备、PR 模板、review 约定）见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 

@@ -2,7 +2,10 @@
 # End users do not install anything - the release zip already contains the interpreter and these wheels.
 # Do not add non-ASCII characters in this file: pip decodes it with the system locale on Chinese Windows.
 httpx==0.27.0
-Pillow==13.0.0
-websockets==17.3
+# Keep the last releases that support Python 3.10.
+Pillow==12.3.0 ; python_version < "3.11"
+Pillow==13.0.0 ; python_version >= "3.11"
+websockets==16.1.1 ; python_version < "3.11"
+websockets==17.3 ; python_version >= "3.11"
 websocket-client==1.8.0
 segno==1.6.6

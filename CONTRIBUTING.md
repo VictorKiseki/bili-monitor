@@ -44,8 +44,8 @@ python -m venv .venv
 node --check <(把 web/index.html 里的 <script> 抽出来)   # 见 .github/workflows/ci.yml 的做法
 ```
 
-CI 会跑三层：Windows + Python 3.10 / 3.11 / 3.12 的单元测试与 `release.py check`；
-`build_runtime.py` 现建运行时后打绿色包并解压冒烟；外加内联 JS 语法与文档内链检查。本地绿了 CI 基本就绿。
+CI 在 Windows 的 Python 3.10 / 3.11 / 3.12 上运行 `.github/tests/` 中的公开快照离线测试和 `release.py check`。
+开发线还会运行 `tests/` 中的全量用例。CI 也会现建运行时、打绿色包并解压离线冒烟，同时校验内联 JS 语法与文档内链。
 
 ## 3. 版本迭代（硬性要求，详见 AGENTS.md §1）
 

@@ -85,7 +85,7 @@ def runtime_pythonw() -> Path:
 def run_probe(exe: Path) -> tuple[bool, str]:
     try:
         proc = subprocess.run(
-            [str(exe), "-c", PROBE],
+            [str(exe), "-E", "-X", "utf8", "-c", PROBE],
             cwd=str(ROOT),
             capture_output=True,
             text=True,
@@ -268,6 +268,10 @@ def cmd_build(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
     ap = argparse.ArgumentParser(description="构建项目自带的 Python 运行时（runtime/）")
     sub = ap.add_subparsers(dest="cmd")
 
@@ -283,9 +287,11 @@ def main(argv: list[str] | None = None) -> int:
     p_check = sub.add_parser("check", help="只校验现有 runtime/")
     p_check.set_defaults(func=cmd_check)
 
-    # 兼容无子命令：python scripts/build_runtime.py --force
+    # 兼容文档和 CI 使用的 --check，以及省略 build 子命令的构建选项。
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv or argv[0].startswith("-"):
+    if argv[:1] == ["--check"]:
+        argv[0] = "check"
+    elif not argv or argv[0].startswith("-"):
         argv = ["build"] + argv
     args = ap.parse_args(argv)
     if not getattr(args, "func", None):
