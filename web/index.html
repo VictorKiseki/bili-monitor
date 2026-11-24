@@ -408,6 +408,9 @@
                 title="网络代理：给本程序的 HTTP(S) 请求（B 站接口、卡片图、更新检查）套一个本机代理">
           <span class="si-t">网络代理</span><span class="si-k" id="proxyTag">读取中</span>
         </button>
+        <button class="set-item" type="button" role="menuitem" data-set="profile">
+          <span class="si-t">配置迁移</span><span class="si-k">导出 / 导入</span>
+        </button>
         <div class="set-sep"></div>
         <button class="set-item" type="button" role="menuitem" data-set="check"
                 title="检查 Gitee 上有没有新版本（只读 VERSION，不下载、不自动升级）">
@@ -559,6 +562,50 @@
       <input type="time" id="wkPushAt" step="60" title="每日推送时间">
       <button class="primary" id="wkPushSave">保存时间</button>
     </div>
+    <details class="card" id="wkRecognition" style="margin-bottom:14px">
+      <summary style="cursor:pointer">日程识别</summary>
+      <form class="wkpush" id="wkRecognitionForm" novalidate style="margin:12px 0 8px;align-items:end">
+        <label class="field">识别方式
+          <select id="wkRecognitionMode">
+            <option value="harness">Harness 文件交接</option>
+            <option value="http">自定义 Agent API</option>
+            <option value="deepseek">DeepSeek 直连</option>
+          </select>
+        </label>
+        <label class="field wide" id="wkRecognitionUrlField">Agent API URL
+          <input type="url" id="wkRecognitionUrl" placeholder="http://127.0.0.1:8080/recognize" maxlength="2048" style="max-width:100%">
+        </label>
+        <label class="field" id="wkRecognitionTokenField">Bearer Token（可选）
+          <input type="password" id="wkRecognitionToken" autocomplete="new-password" maxlength="4096">
+        </label>
+        <label class="hint" id="wkRecognitionClearField"><input type="checkbox" id="wkRecognitionClear"> 清除已保存的 Token</label>
+        <label class="field" id="wkRecognitionKeyField" style="display:none">DeepSeek API Key
+          <input type="password" id="wkRecognitionKey" autocomplete="new-password" maxlength="4096">
+        </label>
+        <label class="hint" id="wkRecognitionKeyClearField" style="display:none"><input type="checkbox" id="wkRecognitionKeyClear"> 清除已保存的 API Key</label>
+        <button class="primary" type="submit" id="wkRecognitionSave">保存设置</button>
+        <button class="act" type="button" id="wkRecognitionTest">测试接入</button>
+        <button class="act" type="button" id="wkRecognitionRun">立即识别</button>
+      </form>
+      <div class="hint" id="wkRecognitionFeedback" role="status"></div>
+      <div class="hint" id="wkRecognitionState" role="status"></div>
+      <div class="hint" id="wkRecognitionHint"></div>
+      <form class="wkpush" id="wkRecognitionSchedule" style="margin:14px 0 6px;align-items:end">
+        <b id="wkRecognitionSlotsLabel">每日识别时段</b>
+        <div class="wkpush" id="wkRecognitionSlots" role="group" aria-labelledby="wkRecognitionSlotsLabel"
+             aria-describedby="wkRecognitionSlotsHint" style="margin:0"></div>
+        <button class="act" id="wkRecognitionSlotsAdd" type="button">添加时段</button>
+        <button class="act" id="wkRecognitionSlotsSave" type="submit">保存时段</button>
+      </form>
+      <template id="wkRecognitionSlot">
+        <span class="wkpush" style="gap:6px;margin:0">
+          <input type="time" step="60" required aria-label="识别时间">
+          <button class="act" type="button">移除</button>
+        </span>
+      </template>
+      <div class="hint" id="wkRecognitionSlotsHint">按监控台所在电脑的时间运行。移除所有时段并保存可暂停定时识别。</div>
+      <div class="hint" id="wkRecognitionSlotsStatus" role="status"></div>
+    </details>
     <div class="wkbar">
       <button class="act" id="wkPrev">‹ 上一周</button>
       <div class="wkweek" id="wkWeek">—</div>
@@ -853,6 +900,25 @@
       <button class="act" id="proxyTest" type="button">测试连接</button>
       <button class="act" id="proxySave" type="button">保存</button>
       <button class="act" id="proxyCancel" type="button">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="profileModal">
+  <div class="mbox proxy-box" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+    <div class="proxy-head">
+      <h4 id="profileTitle">配置迁移</h4>
+      <button class="about-x" id="profileClose" type="button" aria-label="关闭">×</button>
+    </div>
+    <p class="proxy-hint">迁移监控名单、分组、推送和日程开关、代理、录像清理设置及监控室布局。</p>
+    <label class="proxy-mode"><input type="checkbox" id="profilePrivate"><span>同时导出登录凭据、QQ 目标、AI 凭据及带密码的代理配置</span></label>
+    <p class="proxy-hint">含凭据的文件为明文，请仅在自己信任的设备间传输。</p>
+    <p class="proxy-hint">导入前请停止监控室。导入会覆盖包内配置，完成后请重启监控台和监控室。</p>
+    <p class="proxy-status" id="profileStatus" role="status" aria-live="polite"></p>
+    <input type="file" id="profileFile" accept=".json,application/json" hidden>
+    <div class="mops">
+      <button class="act" id="profileExport" type="button">导出配置</button>
+      <button class="act" id="profileImport" type="button">导入配置</button>
     </div>
   </div>
 </div>
@@ -2311,6 +2377,235 @@ function loadCleanupLogs() {
   }).catch(function (e) { toast('清理日志加载失败：' + e.message, true); });
 }
 
+/* ---------- 日程识别 ---------- */
+var recognition = { config: null, dirty: false, busy: false, loading: false, revision: 0 };
+var recognitionPath = '/api/weekly/agent-api';
+function recognitionError(error) {
+  if (/没有这个接口|HTTP 404/.test(error.message)) {
+    return '当前监控台尚未加载日程识别接口，请在「进程」页重启「监控台主进程」后刷新';
+  }
+  return error.message;
+}
+function recognitionFeedback(message, error) {
+  $('wkRecognitionFeedback').textContent = message;
+  if (error) toast(message, true);
+}
+function renderRecognition() {
+  var r = recognition.config;
+  if (r && !recognition.dirty) {
+    $('wkRecognitionMode').value = r.mode;
+    $('wkRecognitionUrl').value = r.url;
+    $('wkRecognitionToken').placeholder = r.token_configured ? '已保存，留空保留' : '可留空';
+    $('wkRecognitionKey').placeholder = r.deepseek_key_configured ? '已保存，留空保留' : '填写 DeepSeek API Key';
+  }
+  var mode = $('wkRecognitionMode').value;
+  ['Url', 'Token', 'Clear'].forEach(function (field) {
+    $('wkRecognition' + field + 'Field').style.display = mode === 'http' ? '' : 'none';
+  });
+  ['Key', 'KeyClear'].forEach(function (field) {
+    $('wkRecognition' + field + 'Field').style.display = mode === 'deepseek' ? '' : 'none';
+  });
+  $('wkRecognitionHint').textContent = mode === 'deepseek'
+    ? '使用官方 deepseek-flash。候选动态、图片和日程上下文会发送给 DeepSeek。'
+    : mode === 'http' ? '自定义 Agent 会收到候选动态、图片及识别所需的日程上下文。' : '';
+  ['Mode', 'Url', 'Token', 'Clear', 'Key', 'KeyClear'].forEach(function (field) {
+    $('wkRecognition' + field).disabled = recognition.busy;
+  });
+  $('wkRecognitionSave').disabled = recognition.busy;
+  $('wkRecognitionTest').disabled = recognition.busy;
+  $('wkRecognitionRun').disabled = recognition.busy;
+  if (!r) return;
+  var info = ['待确认 ' + r.pending + ' 条'];
+  if (recognition.dirty) info.push('有待保存的设置');
+  if (r.mode === 'deepseek' && !r.deepseek_key_configured) info.push('请填写并保存 DeepSeek API Key');
+  if (r.paused) info.push('已暂停，可在进程页恢复');
+  if (r.queued) info.push('识别已排队');
+  if (r.last_result) info.push(r.last_result);
+  if (r.config_error || r.last_error) info.push(r.config_error || r.last_error);
+  $('wkRecognitionState').textContent = info.join(' · ');
+}
+function loadRecognition() {
+  if (!$('wkRecognition').open || recognition.busy || recognition.loading) return;
+  var revision = recognition.revision;
+  recognition.loading = true;
+  api(recognitionPath).then(function (r) {
+    if (revision === recognition.revision) {
+      recognition.config = r;
+      renderRecognition();
+    }
+  }).catch(function (e) {
+    if (revision === recognition.revision) {
+      $('wkRecognitionState').textContent = '读取识别状态失败：' + recognitionError(e);
+    }
+  }).then(function () { recognition.loading = false; });
+}
+function submitRecognition(action, body) {
+  if (recognition.busy) return;
+  var r = recognition.config;
+  if ($('wkRecognitionMode').value === 'deepseek' && r &&
+      typeof r.deepseek_key_configured !== 'boolean') {
+    recognitionFeedback('当前监控台还未加载 DeepSeek 直连，请在「进程」页重启「监控台主进程」后刷新', true);
+    return;
+  }
+  if (action && recognition.dirty) {
+    recognitionFeedback('请先保存修改后的识别设置', true);
+    return;
+  }
+  if (action && r && !r.ready) {
+    recognitionFeedback(r.mode === 'deepseek' ? '请填写并保存 DeepSeek API Key' : '请先保存 Agent API 接入设置', true);
+    return;
+  }
+  if (action === '/run' && r && r.queued) {
+    recognitionFeedback('已排队，日程进程组下一轮开始识别');
+    return;
+  }
+  var label = action === '/test' ? '测试接入' : action === '/run' ? '提交识别' : '保存设置';
+  recognition.revision += 1;
+  recognition.busy = true;
+  recognitionFeedback('正在' + label + '…');
+  renderRecognition();
+  api(recognitionPath + action, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) })
+    .then(function (r) {
+      if (!action) {
+        recognition.config = r;
+        recognition.dirty = false;
+        $('wkRecognitionToken').value = '';
+        $('wkRecognitionClear').checked = false;
+        $('wkRecognitionKey').value = '';
+        $('wkRecognitionKeyClear').checked = false;
+      } else if (action === '/run' && recognition.config) {
+        recognition.config.queued = true;
+      }
+      var message = r.note || '识别设置已保存';
+      recognitionFeedback(message);
+      toast(message);
+    }).catch(function (e) { recognitionFeedback(label + '失败：' + recognitionError(e), true); })
+    .then(function () {
+      recognition.busy = false;
+      renderRecognition();
+      loadRecognition();
+    });
+}
+var recognitionSchedule = {dirty: false, busy: false, loading: false, loaded: false, revision: 0};
+var recognitionSchedulePath = '/api/weekly/ai';
+function editRecognitionSlots() {
+  recognitionSchedule.dirty = true;
+  recognitionSchedule.revision += 1;
+  $('wkRecognitionSlotsStatus').textContent = '时段有改动，点击「保存时段」生效';
+}
+function appendRecognitionSlot(value) {
+  var row = $('wkRecognitionSlot').content.firstElementChild.cloneNode(true);
+  var input = row.querySelector('input');
+  input.value = value;
+  input.oninput = editRecognitionSlots;
+  input.onchange = editRecognitionSlots;
+  row.querySelector('button').onclick = function () {
+    row.parentNode.removeChild(row);
+    editRecognitionSlots();
+  };
+  $('wkRecognitionSlots').appendChild(row);
+  return input;
+}
+function showRecognitionSlots(slots) {
+  $('wkRecognitionSlots').textContent = '';
+  slots.forEach(function (slot) {
+    var match = /^([0-9]{1,2}):([0-9]{1,2})$/.exec(slot);
+    var value = '';
+    if (match && Number(match[1]) <= 24 && Number(match[2]) < 60) {
+      value = ('0' + (Number(match[1]) % 24)).slice(-2) + ':' +
+        ('0' + Number(match[2])).slice(-2);
+    }
+    appendRecognitionSlot(value);
+  });
+}
+function loadRecognitionSlots() {
+  if (!$('wkRecognition').open || recognitionSchedule.busy || recognitionSchedule.dirty || recognitionSchedule.loading) return;
+  var revision = recognitionSchedule.revision;
+  var status = $('wkRecognitionSlotsStatus');
+  recognitionSchedule.loading = true;
+  status.textContent = '正在读取识别时段…';
+  api(recognitionSchedulePath).then(function (r) {
+    if (revision !== recognitionSchedule.revision) return;
+    showRecognitionSlots(r.slots);
+    recognitionSchedule.loaded = true;
+    status.textContent = r.slots.length ? '' : '定时识别已暂停';
+  }).catch(function (e) {
+    if (revision === recognitionSchedule.revision) {
+      status.textContent = '读取时段失败：' + recognitionError(e);
+    }
+  }).then(function () { recognitionSchedule.loading = false; });
+}
+$('wkRecognition').ontoggle = function () {
+  loadRecognition();
+  loadRecognitionSlots();
+};
+$('wkRecognitionSlotsAdd').onclick = function () {
+  if (!recognitionSchedule.loaded) {
+    loadRecognitionSlots();
+    return;
+  }
+  appendRecognitionSlot('').focus();
+  editRecognitionSlots();
+};
+$('wkRecognitionSchedule').onsubmit = function (ev) {
+  ev.preventDefault();
+  if (recognitionSchedule.busy) return;
+  var status = $('wkRecognitionSlotsStatus');
+  if (!recognitionSchedule.dirty) {
+    status.textContent = '编辑时段后即可保存';
+    return;
+  }
+  var slots = Array.prototype.map.call($('wkRecognitionSlots').querySelectorAll('input'), function (input) {
+    return input.value;
+  });
+  if (slots.some(function (slot) { return !/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(slot); })) {
+    status.textContent = '请为每个时段选择有效时间';
+    return;
+  }
+  recognitionSchedule.busy = true;
+  var controls = $('wkRecognitionSchedule').querySelectorAll('input, button');
+  Array.prototype.forEach.call(controls, function (control) { control.disabled = true; });
+  status.textContent = '正在保存时段…';
+  api(recognitionSchedulePath, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slots: slots }) })
+    .then(function (r) {
+      recognitionSchedule.dirty = false;
+      showRecognitionSlots(r.slots);
+      status.textContent = r.slots.length ? '时段已保存' : '定时识别已暂停，可继续立即识别';
+    }).catch(function (e) { status.textContent = '保存时段失败：' + recognitionError(e); })
+    .then(function () {
+      recognitionSchedule.busy = false;
+      Array.prototype.forEach.call(controls, function (control) { control.disabled = false; });
+    });
+};
+function editRecognition() {
+  recognition.dirty = true;
+  renderRecognition();
+}
+$('wkRecognitionMode').onchange = editRecognition;
+$('wkRecognitionForm').oninput = editRecognition;
+renderRecognition();
+$('wkRecognitionForm').onsubmit = function (ev) {
+  ev.preventDefault();
+  var body = { mode: $('wkRecognitionMode').value };
+  if (body.mode === 'http' || body.mode === 'deepseek') {
+    var deepseek = body.mode === 'deepseek';
+    var field = deepseek ? 'Key' : 'Token';
+    var secret = $('wkRecognition' + field).value.trim();
+    var clear = $('wkRecognition' + (deepseek ? 'KeyClear' : 'Clear')).checked;
+    if (secret && clear) {
+      recognitionFeedback('填写新凭据和清除原凭据只能选一项', true);
+      return;
+    }
+    if (secret || clear) body[deepseek ? 'deepseek_key' : 'token'] = secret;
+    if (!deepseek) body.url = $('wkRecognitionUrl').value.trim();
+  }
+  submitRecognition('', body);
+};
+$('wkRecognitionTest').onclick = function () { submitRecognition('/test', {}); };
+$('wkRecognitionRun').onclick = function () { submitRecognition('/run', {}); };
+
 /* ---------- 日程表（周表） ---------- */
 var wk = { week: '', cur: null, who: '' };
 var wkEntries = [];        /* 渲染时的条目索引，编辑按钮靠它回查 */
@@ -3060,7 +3355,7 @@ function refresh() {
   if (state.tab === 'overview') loadOverview();
   else if (state.tab === 'subjects') loadSubjects();
   else if (state.tab === 'events') loadEvents();
-  else if (state.tab === 'weekly') { if (state.weeklyOn) loadWeekly(); }
+  else if (state.tab === 'weekly' && state.weeklyOn) { loadWeekly(); loadRecognition(); }
   else if (state.tab === 'deliveries') loadDeliveries();
   else if (state.tab === 'logs') { if ($('logAuto').checked) loadLogs(); }
   else if (state.tab === 'qq') loadQQ();
@@ -3107,7 +3402,70 @@ $('settings-menu').onclick = function (ev) {
   if (act === 'check') openUpdate();
   else if (act === 'about') openAbout();
   else if (act === 'proxy') openProxy();
+  else if (act === 'profile') {
+    $('profileModal').classList.add('show');
+    $('profileClose').focus();
+  }
   /* livedeck：交给链接默认行为，新标签页打开 8760 */
+};
+function closeProfile() {
+  $('profileModal').classList.remove('show');
+  $('settings-btn').focus();
+}
+function profileBusy(busy) {
+  $('profileExport').disabled = busy;
+  $('profileImport').disabled = busy;
+}
+$('profileClose').onclick = closeProfile;
+$('profileModal').onclick = function (ev) { if (ev.target === this) closeProfile(); };
+$('profileModal').onkeydown = function (ev) { if (ev.key === 'Escape') closeProfile(); };
+$('profileExport').onclick = function () {
+  profileBusy(true);
+  $('profileStatus').textContent = '正在导出…';
+  fetch('/api/profile/export', {
+    method: 'POST',
+    body: JSON.stringify({include_private: $('profilePrivate').checked})
+  }).then(function (r) {
+    if (r.ok) return r.blob();
+    return r.json().then(function (j) { throw new Error(j.error || '导出失败'); });
+  }).then(function (blob) {
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'bili-monitor-profile.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    $('profileStatus').textContent = '配置已导出。';
+  }).catch(function (err) {
+    $('profileStatus').textContent = err.message;
+    toast(err.message, true);
+  }).then(function () { profileBusy(false); });
+};
+$('profileImport').onclick = function () { $('profileFile').click(); };
+$('profileFile').onchange = function () {
+  var file = this.files[0];
+  this.value = '';
+  if (!file) return;
+  if (file.size > 8 * 1024 * 1024) {
+    $('profileStatus').textContent = '迁移包不能超过 8 MiB。';
+    return;
+  }
+  if (!window.confirm('确认导入所选迁移包？包内配置（包括凭据和清理目录）会覆盖本机的对应配置。')) return;
+  profileBusy(true);
+  $('profileStatus').textContent = '正在导入…';
+  api('/api/profile/import', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: file
+  }).then(function (j) {
+    $('profileStatus').textContent = '已导入 ' + j.subjects + ' 名主播。请重启监控台和监控室。';
+    toast(j.note);
+  }).catch(function (err) {
+    $('profileStatus').textContent = err.message;
+    toast(err.message, true);
+  }).then(function () { profileBusy(false); });
 };
 /* ---------- 关于弹窗（2026-11-10）：版本号从 /api/version 取，前端不写死（AGENTS R5） ---------- */
 var aboutLoaded = false;

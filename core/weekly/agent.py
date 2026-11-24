@@ -1,9 +1,9 @@
-"""日程识别编排：闸门 + Harness 文件交接（不直连任何模型）。
+"""日程识别编排：闸门、Harness 文件交接与自定义 Agent API。
 
 闸门沿用管理台的 weekly_ai_* 设置：开关、每批条数、每日时段、人工「排队」标记。
 到点且有待判候选时，本模块把候选写成任务文件（out/ai_tasks/），由 DSH 会话读图后
 把结果写进 out/ai_results/；`harness_ingest` 扫描结果、校验、洗字段后交给
-`core.weekly.ingest` 入库。产品侧不配置、不调用任何模型服务。
+`core.weekly.ingest` 入库。自定义 Agent API 也走同一入库入口。
 
     python scripts/weekly_agent.py status
     python scripts/weekly_agent.py export --limit 6 --dry-run
@@ -12,10 +12,13 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 import time
 
 from core import weekly
+from core.weekly import agent_api
 from core.weekly import batch as batchmod
+from core.weekly import feature
 from core.weekly import harness as harnessmod
 
 #: 与 scripts/weekly_ai.py、web/console_weekly.py 共用同一组 meta 键
@@ -23,6 +26,7 @@ DEFAULTS = {
     "weekly_ai_enabled": "1",
     "weekly_ai_limit": "12",
     "weekly_ai_slots": "08:00,13:00,19:00,00:00",
+    "weekly_ai_slots_updated_at": "0",
     "weekly_ai_request_at": "0",
     "weekly_ai_last_run": "0",
     "weekly_ai_last_result": "",
@@ -95,17 +99,31 @@ def _slot_ts(slot: str, base: dt.date) -> float | None:
     return when.timestamp()
 
 
+def slot_updates(conn, slots: list[str], *, now: float | None = None) -> dict:
+    """时段有变化时一并记录启用时间，已过去的新时段从次日开始。"""
+    canonical = set()
+    for slot in slots:
+        match = re.fullmatch(r"([01]?[0-9]|2[0-3]):([0-5][0-9])", slot)
+        if not match:
+            raise ValueError("时段要写成 HH:MM，例如 08:00")
+        canonical.add(f"{int(match[1]):02d}:{match[2]}")
+    updates = {"weekly_ai_slots": ",".join(sorted(canonical))}
+    if canonical != {slot.zfill(5) for slot in cfg(conn)["slots"]}:
+        updates["weekly_ai_slots_updated_at"] = str(time.time() if now is None else now)
+    return updates
+
+
 def slot_due(conn, now: float | None = None) -> dict:
     """定时时段到点了没。返回 {due, slot, next_run}，给常驻循环用。
 
-    规则：取今天已经过去的最后一个时段（含昨天跨零点的尾巴），只要它晚于上次运行就
-    算到点。管理台点「立即识别」写的是 weekly_ai_request_at，由 gate 处理，不看这里。
+    规则：最近一个已到的时段须晚于上次运行及最近一次时段修改。
+    管理台点「立即识别」由 gate 处理。
     """
     c = cfg(conn)
     ts = float(now if now is not None else time.time())
     today = dt.date.fromtimestamp(ts)
     cands = []
-    for day in (today, today - dt.timedelta(days=1)):
+    for day in (today - dt.timedelta(days=1), today, today + dt.timedelta(days=1)):
         for s in c["slots"]:
             v = _slot_ts(s, day)
             if v is not None:
@@ -114,10 +132,11 @@ def slot_due(conn, now: float | None = None) -> dict:
     passed = [(v, s) for v, s in cands if v <= ts]
     upcoming = [v for v, _s in cands if v > ts]
     if not passed:
-        return {"due": bool(upcoming), "slot": "", "last_slot_ts": 0.0,
+        return {"due": False, "slot": "", "last_slot_ts": 0.0,
                 "next_run": int(upcoming[0]) if upcoming else 0}
     last_v, last_s = passed[-1]
-    return {"due": last_v > c["last_run"], "slot": last_s, "last_slot_ts": last_v,
+    since = max(c["last_run"], float(c["weekly_ai_slots_updated_at"] or 0))
+    return {"due": last_v > since, "slot": last_s, "last_slot_ts": last_v,
             "next_run": int(upcoming[0]) if upcoming else 0}
 
 
@@ -175,7 +194,7 @@ def _num(value, default: float = 0.0) -> float:
         return float(default)
 
 
-def normalize(result: dict, item: dict) -> dict:
+def normalize(result: dict, item: dict, *, extractor: str = "harness") -> dict:
     """把判读输出洗成 weekly.ingest 认的字段（多给/少给都不炸）。"""
     res = dict(result or {})
     res["event_id"] = str(item.get("event_id") or res.get("event_id") or "")
@@ -197,7 +216,7 @@ def normalize(result: dict, item: dict) -> dict:
     conf = max(0.0, min(1.0, _num(res.get("confidence"), 0.0)))
     res["confidence"] = conf
     res["note"] = str(res.get("note") or "").strip()[:300]
-    res["extractor"] = "harness"
+    res["extractor"] = extractor
     re_v = str(res.get("recheck") or "").strip().lower()
     res["recheck"] = re_v if re_v in ("confirmed", "downgraded", "unsure") else ""
     res["handwritten"] = bool(res.get("handwritten"))
@@ -311,3 +330,60 @@ def status(conn) -> dict:
                       "last_items": int(rows.get("weekly_agent_last_items") or 0),
                       "last_error": rows.get("weekly_agent_last_error") or ""},
             "next_run": slot_due(conn).get("next_run") or 0, "now": int(time.time())}
+
+
+def api_run(conn, config: dict, *, client=None) -> dict:
+    """领取本轮执行机会，发送候选，并回收仍待确认的结果。"""
+    conn.execute("BEGIN IMMEDIATE")
+    decision = gate(conn)
+    if not feature.enabled(conn) or not decision["go"] or not (decision["manual"] or slot_due(conn)["due"]):
+        conn.rollback()
+        return {"ok": True, "count": 0}
+    started = time.time()
+    _set_meta(conn, {"weekly_ai_last_run": started, "weekly_agent_last_run": started,
+                     "weekly_agent_last_items": 0, "weekly_agent_last_error": "",
+                     "weekly_ai_last_result": "自定义 Agent 识别中"})
+
+    limit = decision["limit"]
+    items = {}
+    try:
+        batch = batchmod.build(conn, limit=limit, ocr_max=min(limit, 12),
+                               exclude_event_ids=harnessmod.open_event_ids())
+        items = {item["event_id"]: item for item in batch["items"]}
+        if not items:
+            _set_meta(conn, {"weekly_ai_last_result": "暂无可提交的候选"})
+            return {"ok": True, "count": 0}
+        payload = agent_api.build_payload(list(items.values()), _material)
+        rows = agent_api.recognize(config, payload, client=client)
+    except ValueError as exc:
+        error = str(exc)
+        _set_meta(conn, {"weekly_agent_last_items": len(items), "weekly_agent_last_error": error,
+                         "weekly_ai_last_result": "自定义 Agent 识别失败"})
+        return {"ok": False, "count": 0, "error": error}
+
+    counts = {"saved": 0, "single": 0, "review": 0, "skipped": 0, "error": 0}
+    for row in rows:
+        item = items[row["event_id"]]
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            if not feature.enabled(conn):
+                break
+            current = conn.execute(
+                "SELECT c.status, c.human_scope, s.weekly_on FROM weekly_candidate c"
+                " LEFT JOIN subject s ON s.uid=c.uid WHERE c.event_id=?",
+                (row["event_id"],),
+            ).fetchone()
+            if (current and current["status"] == "pending" and current["weekly_on"] != 0
+                    and current["human_scope"] == item.get("human_scope")):
+                extractor = "deepseek" if config["mode"] == "deepseek" else "agent_api"
+                result = normalize(row, item, extractor=extractor)
+                summary = weekly.ingest(conn, [result], keep_pending_on_error=True)
+                for key in counts:
+                    counts[key] += summary[key]
+        finally:
+            conn.rollback()
+    tail = "识别 %d 条 / 周表 %d 张 / 单场 %d 场 / 复核 %d 条 / 排除 %d 条 / 错误 %d 条" % (
+        len(rows), counts["saved"], counts["single"], counts["review"], counts["skipped"], counts["error"])
+    _set_meta(conn, {"weekly_agent_last_items": len(items), "weekly_ai_last_result": tail,
+                     "weekly_agent_last_error": "部分候选未通过入库校验" if counts["error"] else ""})
+    return {"ok": True, "count": len(rows), "ingest": counts}

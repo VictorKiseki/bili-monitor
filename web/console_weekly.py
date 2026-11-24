@@ -281,39 +281,20 @@ class ConsoleWeekly:
                  ".webp": "image/webp", ".gif": "image/gif"}.get(p.suffix.lower(), "image/jpeg")
         return p.read_bytes(), ctype
 
-    _AI_DEFAULTS = {"weekly_ai_enabled": "1", "weekly_ai_limit": "12",
-                    "weekly_ai_slots": "08:00,13:00,19:00,00:00"}
-
-    def _ai_cfg(self, conn) -> dict:
-        d = dict(self._AI_DEFAULTS)
-        for r in conn.execute("SELECT k, v FROM meta WHERE k LIKE 'weekly_ai_%'").fetchall():
-            d[r["k"]] = r["v"]
-        d.setdefault("weekly_ai_request_at", "0")
-        d.setdefault("weekly_ai_last_run", "0")
-        return d
-
     def weekly_ai_status(self) -> dict:
-        """定时识别流程的开关/条数/待确认，以及有没有排队的立刻执行请求。
-
-        真正的执行者是 DSH 定时会话，这里只改「跑不跑、跑几条」的口径；
-        会话第一步用 scripts/weekly_ai.py gate 读同一份配置。
-        """
-        from core import weekly as W
+        """读取日程进程组使用的时段、批次设置与排队状态。"""
+        from core.weekly import agent as A
         with self._lock:
             conn = self._db()
-            d = self._ai_cfg(conn)
-            pend = W.pending_count(conn)          # 已扣掉日程表监控关掉的主播
-        last_run = float(d.get("weekly_ai_last_run") or 0)
-        req = float(d.get("weekly_ai_request_at") or 0)
+            cfg = A.cfg(conn)
+            pending = A.pending_count(conn)
         return {"ok": True,
-                "enabled": str(d.get("weekly_ai_enabled", "1")) not in ("0", "false", "no", ""),
-                "limit": int(d.get("weekly_ai_limit") or 12),
-                "slots": [s.strip() for s in str(d.get("weekly_ai_slots") or "").split(",") if s.strip()],
-                "pending": pend,
-                "last_run": last_run,
-                "request_pending": req > last_run}
+                "enabled": cfg["enabled"], "limit": cfg["limit"], "slots": cfg["slots"],
+                "pending": pending, "last_run": cfg["last_run"],
+                "request_pending": cfg["request_at"] > cfg["last_run"]}
 
     def weekly_ai_update(self, body: dict) -> dict:
+        from core.weekly import agent as A
         updates: dict[str, str] = {}
         if "enabled" in body:
             updates["weekly_ai_enabled"] = "1" if body.get("enabled") else "0"
@@ -322,19 +303,20 @@ class ConsoleWeekly:
                 updates["weekly_ai_limit"] = str(max(1, min(int(body.get("limit") or 12), 60)))
             except (TypeError, ValueError):
                 raise ApiError("每次处理的条数要是 1~60 的整数")
-        if "slots" in body:
-            slots = [str(s).strip() for s in (body.get("slots") or []) if str(s).strip()]
-            for s in slots:
-                if not re.fullmatch(r"([01]?\d|2[0-3]):[0-5]\d", s):
-                    raise ApiError("时段要写成 HH:MM，例如 08:00")
-            updates["weekly_ai_slots"] = ",".join(slots)
-        if updates:
+        if updates or "slots" in body:
             with self._lock:
                 conn = self._db()
-                for k, v in updates.items():
-                    conn.execute("INSERT INTO meta(k, v) VALUES(?, ?)"
-                                 " ON CONFLICT(k) DO UPDATE SET v=excluded.v", (k, v))
-                conn.commit()
+                if "slots" in body:
+                    raw = body["slots"]
+                    if raw is None:
+                        raw = []
+                    if not isinstance(raw, list) or any(not isinstance(slot, str) for slot in raw):
+                        raise ApiError("请传入时段列表，例如 [\"08:00\", \"19:30\"]")
+                    try:
+                        updates.update(A.slot_updates(conn, [slot.strip() for slot in raw if slot.strip()]))
+                    except ValueError as exc:
+                        raise ApiError(str(exc)) from None
+                A._set_meta(conn, updates)
         return self.weekly_ai_status()
 
     def weekly_ai_request(self) -> dict:
@@ -348,9 +330,72 @@ class ConsoleWeekly:
         return {"ok": True, "request_at": now,
                 "note": "已排队：下一次定时识别会优先执行（控制台无法直接唤醒 DSH 会话）"}
 
+    def weekly_agent_api_status(self) -> dict:
+        from core import tasks as T
+        from core.weekly import agent as A
+        from core.weekly import agent_api as API
+        from core.weekly import feature as F
+
+        config_error = ""
+        try:
+            config = API.load_config()
+        except ValueError as exc:
+            config = API.DEFAULTS
+            config_error = str(exc)
+        with self._lock:
+            conn = self._db()
+            decision = A.gate(conn)
+            cfg = A.cfg(conn)
+            enabled = F.enabled(conn)
+            row = conn.execute("SELECT v FROM meta WHERE k='weekly_agent_last_error'").fetchone()
+        paused = T.BOARD.paused("weekly_agent")
+        deepseek_key_configured = bool(config["deepseek_key"])
+        ready = config["mode"] == "http" or (config["mode"] == "deepseek" and deepseek_key_configured)
+        return {"ok": True, "mode": config["mode"], "url": config["url"],
+                "token_configured": bool(config["token"]), "config_error": config_error,
+                "deepseek_key_configured": deepseek_key_configured, "ready": ready,
+                "pending": decision["pending"], "queued": decision["manual"], "paused": paused,
+                "available": enabled and not paused and decision["go"],
+                "last_result": cfg["last_result"], "last_error": row[0] if row else ""}
+
+    def weekly_agent_api_update(self, body: dict) -> dict:
+        from core.weekly import agent_api as API
+
+        updates = {key: body[key] for key in API.DEFAULTS if key in body}
+        if not updates:
+            raise ApiError("请提供识别方式或接入配置")
+        with self._lock:
+            try:
+                API.save_config(updates)
+            except ValueError as exc:
+                raise ApiError(str(exc)) from None
+            except OSError:
+                raise ApiError("无法保存自定义 Agent 配置") from None
+        return self.weekly_agent_api_status()
+
+    def weekly_agent_api_test(self) -> dict:
+        from core.weekly import agent_api as API
+
+        try:
+            API.probe(API.load_config())
+        except ValueError as exc:
+            raise ApiError(str(exc)) from None
+        return {"ok": True, "note": "测试通过，Agent 返回了有效的识别结果"}
+
+    def weekly_agent_api_request(self) -> dict:
+        status = self.weekly_agent_api_status()
+        if status["config_error"] or not status["ready"]:
+            raise ApiError("请先保存 Agent API 配置或 DeepSeek API Key")
+        if status["paused"]:
+            raise ApiError("日程识别已暂停，请在进程页恢复")
+        if not status["available"]:
+            raise ApiError("暂无待确认候选" if not status["pending"] else "日程识别已关闭")
+        request = self.weekly_ai_request()
+        request["note"] = "已排队，日程进程组下一轮开始识别"
+        return request
+
     # ---------------- 日程识别 Harness 交接（2026-11-08） ----------------
-    # 产品侧只保留闸门与文件交接：到点由 weekly_agent_loop 导出任务包，
-    # DSH 会话读图后把结果写进 out/ai_results，导回即入库。这里不配置也不调用模型。
+    # Harness 模式到点导出任务包，回收 DSH 会话写入 out/ai_results 的结果。
 
     def weekly_agent_status(self) -> dict:
         """开关/队列 + 上次结果 + Harness 任务统计 + 下一个时段。"""

@@ -114,6 +114,7 @@ REQUIRED_FILES = [
     "scripts/build_runtime.py",
     "scripts/setup_wizard.py", "scripts/run_bot.py", "scripts/schedule_worker.py",
     "BBOT.env.example", "config/bili.env.example", "config/subjects.json.example",
+    "config/weekly_agent.json.example", "core/weekly/agent_api.py",
     "core/weekly/agent.py", "core/weekly/harness.py", "core/weekly/push.py",
     "core/weekly/feature.py",
     # 运行时要用的静态资源：名字带 tmp 的模块和 livedeck 的三张界面配图

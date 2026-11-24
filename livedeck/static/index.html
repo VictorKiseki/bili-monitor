@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DD全能工作间 · 多屏监控室</title>
-<link rel="stylesheet" href="/static/style.css?v=20261120b">
+<link rel="stylesheet" href="/static/style.css?v=20261122b">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23fb7299'/><path d='M10 12h12M10 20h12' stroke='white' stroke-width='3' stroke-linecap='round'/></svg>">
 </head>
 <body>
@@ -50,6 +50,9 @@
           <a class="set-item" role="menuitem" data-set="console" href="http://127.0.0.1:8765/" target="_blank" rel="noopener">
             <span class="si-t">监控台</span><span class="si-k">127.0.0.1:8765 ↗</span>
           </a>
+          <a class="set-item" role="menuitem" data-set="sync-lab" href="/sync-lab.html" target="_blank" rel="noopener">
+            <span class="si-t">联动同步测试</span><span class="si-k">新标签页 ↗</span>
+          </a>
           <button class="set-item" type="button" role="menuitem" data-set="help">
             <span class="si-t">使用说明</span><span class="si-k">操作指引</span>
           </button>
@@ -72,15 +75,20 @@
   </header>
 
   <!-- 左栏：房间 -->
-  <aside class="rail">
+  <aside class="rail" id="room-rail" aria-label="直播间">
     <div class="rail-head">
       <div class="rail-title">
         <h2>直播间</h2>
         <span class="rail-pills"><span class="count-pill" id="rail-count">0/16</span><span class="count-pill listen hide" id="rail-listen" title="只收弹幕、不上舞台">听 0</span></span>
+        <button class="icon-btn" id="rail-toggle" type="button" title="收起房间列表" aria-label="收起房间列表"
+                aria-expanded="true" aria-controls="room-rail">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3v10M11 4.5 7.5 8l3.5 3.5"/></svg>
+        </button>
       </div>
       <div class="search">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14"/></svg>
-        <input id="rail-search" type="search" placeholder="搜索主播 / 房间号 / 分组" autocomplete="off">
+        <input id="rail-search" type="search" placeholder="搜索主播 / 房间号 / 标题 / 分组" autocomplete="off">
       </div>
     </div>
     <div class="rail-body" id="rail-body"></div>
@@ -104,6 +112,7 @@
         <span id="stage-meta">未选择直播间</span>
       </div>
       <button class="link hide" id="solo-exit" style="font-size:11px">返回多屏 <span style="color:var(--dim-2)">Esc</span></button>
+      <button class="link stage-sync-btn" id="stage-sync-btn" type="button" aria-haspopup="dialog" aria-controls="stage-sync-dialog" disabled>联动同步</button>
       <button class="link" id="mode-btn" title="低延迟 ≈ 落后 2.5 秒；流畅优先 ≈ 落后 4 秒、不裁剪缓冲，适合高码率房间偶发卡顿时切换">低延迟</button>
       <button class="link" id="bg-btn" title="后台暂停：窗口最小化 / 切到别的标签页 5 秒后暂停全部画面（省内存，弹幕照收），回来自动恢复 · 点击改成后台续播">后台暂停</button>
       <span class="qwrap">
@@ -154,9 +163,11 @@
         <span class="now" id="chat-count">0 条</span>
       </div>
       <div class="chat-filter">
-        <select id="chat-room" title="弹幕来源">
+        <select id="chat-room" aria-label="主栏弹幕来源" title="主栏弹幕来源">
           <option value="0">合并 · 全部</option>
         </select>
+        <button class="mini" id="chat-time-toggle" type="button" title="切换弹幕时间显示">时间</button>
+        <button class="mini" id="chat-split-toggle" type="button" aria-pressed="false" aria-controls="chat-sub" title="开启弹幕子栏">分栏</button>
         <button class="mini" id="combo-open" title="临时组合：把几个直播间并成一条弹幕流，可随时切换">组合</button>
       </div>
       <div class="combo-panel hide" id="combo-panel">
@@ -176,17 +187,40 @@
         </div>
       </div>
       <div class="chat-filter">
-        <div class="seg">
-          <button data-kind="all" class="on">全部</button>
-          <button data-kind="danmaku">弹幕</button>
-          <button data-kind="gift">礼物</button>
-          <button data-kind="sc">SC</button>
+        <div class="seg" id="chat-main-kinds" role="group" aria-label="主栏弹幕分类">
+          <button type="button" data-kind="all" class="on" aria-pressed="true">全部</button>
+          <button type="button" data-kind="danmaku" aria-pressed="false">弹幕</button>
+          <button type="button" data-kind="gift" aria-pressed="false">礼物</button>
+          <button type="button" data-kind="sc" aria-pressed="false">SC</button>
         </div>
-        <button class="mini" id="chat-clear" title="清空当前面板（不影响服务端缓冲）">清屏</button>
+        <button class="mini" id="chat-clear" type="button" title="清空主栏" aria-label="清空主栏">清屏</button>
       </div>
     </div>
-    <div id="feed">
-      <div class="chat-empty" id="feed-empty">等待弹幕…<br>连上直播间后，这里的消息会实时滚动</div>
+    <div class="chat-feeds" id="chat-feeds">
+      <div class="chat-feed" id="feed" role="region" aria-label="主栏弹幕">
+        <div class="chat-empty">等待弹幕…<br>连上直播间后，这里的消息会实时滚动</div>
+      </div>
+      <div class="chat-divider hide" id="chat-divider" role="separator" tabindex="0"
+        aria-label="子栏高度" aria-orientation="horizontal" aria-controls="chat-sub"
+        aria-valuemin="20" aria-valuemax="80" aria-valuenow="50" title="上下拖动调整子栏高度"></div>
+      <section class="chat-sub hide" id="chat-sub" aria-labelledby="chat-sub-label">
+        <div class="chat-filter chat-sub-head">
+          <label id="chat-sub-label" for="chat-sub-room">子栏</label>
+          <select id="chat-sub-room" aria-label="子栏弹幕来源" title="子栏弹幕来源">
+            <option value="0">合并 · 全部</option>
+          </select>
+          <div class="seg" id="chat-sub-kinds" role="group" aria-label="子栏弹幕分类">
+            <button type="button" data-kind="all" class="on" aria-pressed="true">全部</button>
+            <button type="button" data-kind="danmaku" aria-pressed="false">弹幕</button>
+            <button type="button" data-kind="gift" aria-pressed="false">礼物</button>
+            <button type="button" data-kind="sc" aria-pressed="false">SC</button>
+          </div>
+          <button class="mini" id="chat-sub-clear" type="button" title="清空子栏" aria-label="清空子栏">清屏</button>
+        </div>
+        <div class="chat-feed" id="feed-sub" role="region" aria-label="子栏弹幕">
+          <div class="chat-empty">等待弹幕…<br>所选来源的消息会在这里实时显示</div>
+        </div>
+      </section>
     </div>
     <div class="chat-foot">
       <span id="chat-mode-label">全部直播间</span>
@@ -254,6 +288,23 @@
     </div>
   </div>
 </div>
+
+<dialog class="modal stage-sync-modal" id="stage-sync-dialog" aria-labelledby="stage-sync-title">
+  <form id="stage-sync-form">
+    <h3 id="stage-sync-title">联动同步</h3>
+    <p class="hint">从当前舞台手动勾选 2–9 个房间。关闭自动校准后，可填写各路额外延迟。</p>
+    <p class="hint" id="stage-sync-empty" hidden>请先让至少两个房间显示在多屏舞台上。</p>
+    <div id="stage-sync-rooms" class="stage-sync-list"></div>
+    <label class="stage-sync-choice stage-sync-mode"><input id="stage-sync-auto" type="checkbox" checked>按共同声音自动校准</label>
+    <p class="proxy-status" id="stage-sync-status" role="status"></p>
+    <div class="modal-foot">
+      <button class="btn sm" id="stage-sync-stop" type="button" hidden>停止同步</button>
+      <button class="btn sm" id="stage-sync-reset" type="button" hidden>重新校准</button>
+      <button class="btn sm" id="stage-sync-cancel" type="button">取消</button>
+      <button class="btn sm primary" id="stage-sync-apply" type="submit" disabled>开启同步</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- 分组弹窗 -->
 <div class="mask hide" id="grp-mask">
@@ -396,7 +447,7 @@
     </dl>
     <div class="about-foot">
       <span>Python 3.10–3.12（64 位）· Windows 10 1809 及以上</span>
-      <span>mpegts.js 1.8.0（MIT）· © 2026 VictorKiseki</span>
+      <span>mpegts.js 1.8.0（MIT）· hls.js 1.7.4（Apache-2.0）· © 2026 VictorKiseki</span>
     </div>
   </div>
 </div>
@@ -450,6 +501,9 @@
 <div class="pick-tip" id="pick-tip">吸色中：对着直播画面点一下取色 · Esc 取消</div>
 <div id="toasts"></div>
 <script src="/static/vendor/mpegts.min.js?v=1.8.0"></script>
-<script src="/static/app.js?v=20261120b"></script>
+<script src="/static/vendor/hls.light.min.js?v=1.7.4"></script>
+<script src="/static/sync-lab/calibration.js"></script>
+<script src="/static/stage-sync.js"></script>
+<script src="/static/app.js?v=20261122b"></script>
 </body>
 </html>

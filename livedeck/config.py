@@ -171,24 +171,31 @@ class RoomEntry:
         }
 
 
-def load_live_status() -> dict[int, int]:
-    """名单里各房间的最新开播状态（监控台每轮抓取都会写 subject_state）。"""
+def load_rail_live() -> dict[int, tuple[int, str]]:
+    """读取监控台每轮采集保存的开播状态和在播场次标题。"""
     if not DB_PATH.exists():
         return {}
     try:
-        conn = sqlite3.connect("file:%s?mode=ro" % DB_PATH.as_posix(), uri=True, timeout=3)
-        rows = conn.execute(
-            "SELECT s.room_id, COALESCE(st.live_status, 0) "
-            "FROM subject s LEFT JOIN subject_state st ON st.uid = s.uid "
-            "WHERE s.room_id IS NOT NULL AND s.room_id > 0"
-        ).fetchall()
-        conn.close()
+        conn = sqlite3.connect(DB_PATH.resolve().as_uri() + "?mode=ro", uri=True, timeout=3)
+        try:
+            has_sessions = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='live_session'"
+            ).fetchone()
+            title = "CASE WHEN st.live_status = 1 THEN ls.title END" if has_sessions else "NULL"
+            join = "LEFT JOIN live_session ls ON ls.uid = s.uid " if has_sessions else ""
+            rows = conn.execute(
+                f"SELECT s.room_id, COALESCE(st.live_status, 0), {title} "
+                "FROM subject s LEFT JOIN subject_state st ON st.uid = s.uid "
+                f"{join}WHERE s.room_id IS NOT NULL AND s.room_id > 0"
+            ).fetchall()
+        finally:
+            conn.close()
     except sqlite3.Error:
         return {}
-    out: dict[int, int] = {}
+    out: dict[int, tuple[int, str]] = {}
     for r in rows:
         try:
-            out[int(r[0])] = int(r[1] or 0)
+            out[int(r[0])] = (int(r[1] or 0), r[2] or "")
         except (TypeError, ValueError):
             continue
     return out

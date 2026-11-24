@@ -25,6 +25,7 @@ from store.sqlite import SCHEMA, migrate  # noqa: E402
 from web.cleanup import CleanupError, CleanupManager  # noqa: E402
 
 from web.console_core import ApiError  # noqa: E402
+from web.console_profile import MAX_BYTES as PROFILE_MAX_BYTES  # noqa: E402
 
 log = logging.getLogger("console.http")
 # 这个模块的日志以前没配 handler：log.error 靠 logging 的 lastResort 打到 stderr，
@@ -120,7 +121,10 @@ class Handler(BaseHTTPRequestHandler):
 
         旧版只看 TCP 来源和 Host，任意网页一个 form/fetch 就能改名单、重启服务。
         """
-        webutil.validate_request(self, token=self.csrf_token, max_body=self.max_body)
+        limit = self.max_body
+        if self.command == "POST" and self.path.partition("?")[0] == "/api/profile/import":
+            limit = PROFILE_MAX_BYTES
+        webutil.validate_request(self, token=self.csrf_token, max_body=limit)
     def _fail(self, e: webutil.HttpError) -> None:
         """统一的失败出口：{"ok": false, "error": ..., "code": ...}。
 
@@ -240,6 +244,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if method == "GET" and path == "/api/weekly/agent":
             return self._send(c.weekly_agent_status())
+        if method == "GET" and path == "/api/weekly/agent-api":
+            return self._send(c.weekly_agent_api_status())
         if method == "GET" and path == "/api/weekly/ai":
             return self._send(c.weekly_ai_status())
 
@@ -316,6 +322,20 @@ class Handler(BaseHTTPRequestHandler):
         raise ApiError("没有这个接口：%s %s" % (method, path), 404)
 
     def _handle_post(self, method: str, path: str, q: dict, c) -> None:
+        if path == "/api/profile/export":
+            include_private = self._body().get("include_private", False)
+            if type(include_private) is not bool:
+                raise ApiError("include_private 必须是布尔值")
+            return self._send(c.export_profile(include_private), extra={
+                "Content-Disposition": 'attachment; filename="bili-monitor-profile.json"',
+                "X-Content-Type-Options": "nosniff",
+            })
+        if path == "/api/profile/import":
+            try:
+                bundle = webutil.read_json(self, PROFILE_MAX_BYTES, allow_empty=False)
+            except (ValueError, RecursionError):
+                raise ApiError("迁移包格式无效") from None
+            return self._send(c.import_profile(bundle))
         for part in (self._post_weekly, self._post_subjects, self._post_qq,
                      self._post_proxy, self._post_admin):
             result = part(method, path, q, c)
@@ -342,6 +362,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(c.weekly_program_save(self._body()))
         if method == "POST" and path == "/api/weekly/ai/run":
             return self._send(c.weekly_ai_request())
+        if method == "POST" and path == "/api/weekly/agent-api":
+            return self._send(c.weekly_agent_api_update(self._body()))
+        if method == "POST" and path == "/api/weekly/agent-api/test":
+            return self._send(c.weekly_agent_api_test())
+        if method == "POST" and path == "/api/weekly/agent-api/run":
+            return self._send(c.weekly_agent_api_request())
         if method == "POST" and path == "/api/weekly/agent/export":
             b = self._body()
             limit = arg_int(b.get("limit"), 0, 0, 60, name="limit") or None

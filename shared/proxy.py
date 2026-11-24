@@ -287,15 +287,15 @@ def status(cfg: dict | None = None, path: Path | str | None = None) -> dict:
 
 
 def probe(proxy_url: str = "", client=None, timeout: float = 8.0, use_system: bool = False) -> dict:
-    """访问一次 Gitee 上的 VERSION（就是「更新检查」实际要打的地址）。
+    """访问「更新检查」使用的 GitHub 最新正式发行版地址。
 
     use_system=True 时按当前环境变量里的系统代理走；否则用给定的自定义代理地址。
     返回 {"ok", "passed", "status", "ms", "target", "error"}；永远不抛异常，
     client 可注入（AGENTS §5：测试传假 client，不打真实接口）。
     """
-    from shared.update import VERSION_URLS
+    from shared.update import LATEST_RELEASE_URL
 
-    target = VERSION_URLS[0]
+    target = LATEST_RELEASE_URL
     out = {"ok": True, "passed": False, "status": 0, "ms": 0, "target": target, "error": ""}
     if use_system and client is None and not any(os.environ.get(k) for k in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy")):
         out["error"] = "系统里没有配置 HTTP(S) 代理（HTTP_PROXY / HTTPS_PROXY 都是空的）"

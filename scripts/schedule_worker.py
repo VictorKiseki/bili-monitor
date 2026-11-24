@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""日程进程组：周表扫描 / 日程识别交接 / 每日推送 / 直播预约刷新（2026-11-08）
+"""日程进程组：周表扫描 / 日程识别 / 每日推送 / 直播预约刷新（2026-11-08）
 
 从 scripts/run_bot.py 拆出来的独立进程，由 scripts/supervisor.py 看护：
 崩了自动重启，主进程重启时一起重启，停止服务时一起收。
@@ -36,6 +36,7 @@ from collector.bili import BiliClient                  # noqa: E402
 from core import tasks as T                            # noqa: E402
 from core import weekly as _wk                         # noqa: E402
 from core.weekly import agent as _agent                # noqa: E402
+from core.weekly import agent_api as _agent_api        # noqa: E402
 from core.weekly import feature as _feature            # noqa: E402
 from core.weekly import push as _push                  # noqa: E402
 from shared import proxy as proxy_cfg                  # noqa: E402
@@ -45,7 +46,7 @@ from store.sqlite import SCHEMA                        # noqa: E402
 # 否则「不使用代理 / 自定义代理」对它不生效。
 proxy_cfg.apply_to_env()
 
-AGENT_TICK_S = 300.0
+AGENT_TICK_S = 30.0
 SCAN_TICK_S = 600.0
 RESERVE_TICK_S = 1800.0
 HEARTBEAT_S = 15.0
@@ -172,7 +173,7 @@ def reserve_once(db_path: str, log) -> dict:
 
 
 def agent_once(db_path: str, log) -> dict:
-    """先回收结果，再按闸门决定是否导出任务包；不调用任何模型。"""
+    """先回收 Harness 结果，再按闸门安排下一批识别。"""
     conn = _connect(db_path)
     try:
         ing = _agent.harness_ingest(conn, log=None)
@@ -181,6 +182,14 @@ def agent_once(db_path: str, log) -> dict:
             return {"ingest": ing, "gate": gate}
         if not gate.get("manual") and not _agent.slot_due(conn).get("due"):
             return {"ingest": ing, "gate": gate, "slot": "wait"}
+        try:
+            config = _agent_api.load_config()
+        except ValueError as exc:
+            return {"ingest": ing, "gate": gate, "api": {"ok": False, "error": str(exc)}}
+        if config["mode"] == "deepseek" and not config["deepseek_key"]:
+            return {"ingest": ing, "gate": gate}
+        if config["mode"] != "harness":
+            return {"ingest": ing, "gate": gate, "api": _agent.api_run(conn, config)}
         exp = _agent.harness_export(conn, limit=gate.get("limit") or 12)
         return {"ingest": ing, "gate": gate, "export": exp}
     finally:
@@ -234,8 +243,16 @@ async def weekly_agent_loop(db_path: str, log, board=None) -> None:
             res = await asyncio.to_thread(agent_once, db_path, log)
             ing = res.get("ingest") or {}
             saved = (ing.get("ingest") or {}).get("saved", 0)
+            api_run = res.get("api") or {}
+            api_ingest = api_run.get("ingest") or {}
+            api_saved = api_ingest.get("saved", 0) + api_ingest.get("single", 0)
             await asyncio.to_thread(_update_state, db_path, "weekly_agent",
-                                    {"rounds": 1, "saved": saved})
+                                    {"rounds": 1, "saved": saved + api_saved})
+            if api_run.get("error"):
+                log("[日程识别] " + api_run["error"])
+            elif api_run.get("count"):
+                log("[日程识别] API 回收 %d 条 / 入库 %d 条"
+                    % (api_run["count"], api_saved))
             if ing.get("count"):
                 log("[日程交接] 回收结果 %d 条 / 入库 %d 条"
                     % (ing.get("count"), saved))

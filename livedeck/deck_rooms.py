@@ -76,8 +76,8 @@ class DeckRooms:
         self.log("临时组合：%d 个（%s）" % (len(out), "、".join(c["name"] for c in out[:4])))
         return {"ok": True, "combos": out}
 
-    def _rail_live(self) -> dict[int, int]:
-        """名单里各房间的最新开播状态（10 秒节流重读一次）。
+    def _rail_live(self) -> dict[int, tuple[int, str]]:
+        """名单里各房间的最新开播状态和直播标题（10 秒节流重读一次）。
 
         监控台每轮抓取都会把 live_status 写进 subject_state，但本工具只在启动时读一次；
         不在舞台上的房间没有 info 刷新，于是会一直显示很久以前的状态（下播了还亮 LIVE）。
@@ -86,7 +86,7 @@ class DeckRooms:
         if now - getattr(self, "_rail_at", 0.0) < 10.0:
             return getattr(self, "_rail_map", {})
         try:
-            fresh = config.load_live_status()
+            fresh = config.load_rail_live()
         except Exception:  # noqa: BLE001
             fresh = {}
         # 采集进程没在跑时这份状态是旧的，别拿它盖掉自己轮询到的结果
@@ -96,10 +96,10 @@ class DeckRooms:
                 self._rail_at = now
                 self._rail_map = fresh
                 if not own:
-                    for rid, st in fresh.items():
+                    for rid, (status, _) in fresh.items():
                         e = self.rooms.get(rid)
                         if e is not None and e.from_db:
-                            e.live_status = st
+                            e.live_status = status
         return getattr(self, "_rail_map", {})
 
     def rooms_payload(self) -> list[dict]:
@@ -116,6 +116,8 @@ class DeckRooms:
             # 临时房间移出舞台后仍然保留在列表里，只有手动删除才消失
             info = self.info.get(e.room_id) or {}
             anchor = self._anchors.get(e.uid) or {}
+            saved_status, saved_title = rail.get(e.room_id, (e.live_status, ""))
+            title = info.get("title") or saved_title
             if e.room_id in active and info:
                 # 舞台上的房间用刚拉到的信息
                 live = int(info.get("live_status") or 0)
@@ -125,13 +127,15 @@ class DeckRooms:
                 if self._own_status():
                     live = int(info.get("live_status", e.live_status) or 0)
                 else:
-                    live = int(rail.get(e.room_id, e.live_status) or 0)
+                    live = int(saved_status or 0)
+                    if e.room_id not in listening:
+                        title = saved_title or title
             else:
                 live = int(info.get("live_status", e.live_status) or 0)
             out.append({
                 "uid": e.uid, "name": info.get("uname") or anchor.get("uname") or e.name,
                 "room_id": e.room_id, "grp": e.grp, "enabled": e.enabled,
-                "live_status": live, "title": info.get("title") or "",
+                "live_status": live, "title": title,
                 "cover": info.get("cover") or "",
                 "face": info.get("face") or anchor.get("face") or "",
                 "online": int(info.get("online") or 0),

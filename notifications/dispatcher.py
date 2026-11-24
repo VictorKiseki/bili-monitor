@@ -254,9 +254,11 @@ class Dispatcher:
             note = raw.get("media_note")
             if media:
                 log.info("已发送 delivery=%s event=%s 带卡片图", delivery.delivery_id, delivery.event_id)
-            elif self._cap.supports_image:
+            elif note:
                 log.warning("已发送 delivery=%s event=%s 未带图片（纯文字）note=%s",
                             delivery.delivery_id, delivery.event_id, note)
+            else:
+                log.info("已发送 delivery=%s event=%s 纯文字", delivery.delivery_id, delivery.event_id)
             await self._discard_card(ev)
             return Outcome(delivery.delivery_id, delivery.event_id, delivery.target_id,
                            "sent", delivery.attempts, None, "media" if media else "text_only")

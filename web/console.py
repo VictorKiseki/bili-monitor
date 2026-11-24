@@ -40,12 +40,13 @@ from web.console_views import TYPE_LABEL, ConsoleViews  # noqa: E402
 from web.console_tasks import ConsoleTasks  # noqa: E402
 from web.console_feed import ConsoleFeed  # noqa: E402
 from web.console_stack import ConsoleStack  # noqa: E402
+from web.console_profile import ConsoleProfile  # noqa: E402
 from web.console_http import Handler, make_server, serve_in_thread  # noqa: E402
 
 class Console(ConsoleCore, ConsoleBili, ConsoleQQ, ConsoleWeekly, ConsoleViews, ConsoleTasks,
-              ConsoleFeed, ConsoleStack):
+              ConsoleFeed, ConsoleStack, ConsoleProfile):
     """管理台的数据层：直接用 sqlite3 读库，改名单时同步写回 config/subjects.json。"""
 
 
 del ConsoleCore, ConsoleBili, ConsoleQQ, ConsoleWeekly, ConsoleViews, ConsoleTasks, ConsoleFeed
-del ConsoleStack
+del ConsoleStack, ConsoleProfile

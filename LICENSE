@@ -26,3 +26,6 @@ SOFTWARE.
 
 collector/qrcodegen.py 为 Project Nayuki 的 qrcodegen 原样 vendored 文件，
 其版权与许可归原作者所有（MIT），条款与本文件一致，详见文件头注释。
+
+livedeck/static/vendor/hls.light.min.js 为 hls.js 1.7.4 的发行构建。
+版权声明及 Apache 2.0 许可见同目录 hls.js.LICENSE 和 Apache-2.0.txt。

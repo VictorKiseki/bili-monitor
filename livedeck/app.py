@@ -41,7 +41,7 @@ from livedeck.deck_base import (
     clean_text,
     normalize_color,
 )
-from livedeck.deck_bridge import DeckBridge as _DeckBridge
+from livedeck.deck_bridge import DeckBridge as _DeckBridge, PlaySource
 from livedeck.deck_chat import DeckChat as _DeckChat
 from shared import proxy as proxy_cfg
 from livedeck.deck_info import DeckInfo as _DeckInfo
@@ -86,7 +86,7 @@ class LiveDeck(_DeckRooms, _DeckInfo, _DeckChat, _DeckLogin, _DeckBridge):
         self.login_check_ttl = 300       # 校验失败时缩短（见 deck_login.RETRY_TTL）
         self._token_at = 0.0
         self._dirty = True
-        self._play: dict[int, tuple[float, str]] = {}
+        self._play: dict[tuple[int, int], tuple[float, PlaySource]] = {}
         self._danmu: dict[int, tuple[float, dict]] = {}
         self._emo: dict[int, tuple[float, dict]] = {}
         self._resync_at = 0.0

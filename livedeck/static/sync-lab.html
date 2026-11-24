@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>联动同步测试 · 监控室</title>
+  <style>
+    :root { color-scheme: dark; font: 15px/1.55 system-ui, "Microsoft YaHei", sans-serif; background: #0f1319; color: #eff3f8 }
+    * { box-sizing: border-box }
+    main { max-width: 1440px; margin: auto; padding: clamp(16px, 3vw, 40px) }
+    a { color: #8ce3d4 }
+    h1 { margin: 6px 0 18px; font-size: 25px }
+    p { margin: 6px 0 }
+    .panel, .tile { border: 1px solid #354150; border-radius: 8px; background: #171e28 }
+    .panel { padding: 16px; margin-bottom: 18px }
+    .row { display: flex; gap: 8px 12px; align-items: center; flex-wrap: wrap }
+    input, button, select { font: inherit; border: 1px solid #546475; border-radius: 5px; background: #202a36; color: inherit; padding: 6px 10px }
+    input:focus-visible, button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid #8ce3d4; outline-offset: 2px }
+    button { cursor: pointer }
+    button:disabled { opacity: .5; cursor: default }
+    button[type="submit"] { background: #8ce3d4; color: #10251f; border-color: #8ce3d4; font-weight: 650 }
+    #rooms { width: min(430px, 100%); flex: 1 1 200px; max-width: 430px }
+    .hint, .badge { color: #b6c1d1 }
+    label, .hint, .badge { font-size: 14px }
+    input[type="checkbox"] { accent-color: #8ce3d4; vertical-align: middle }
+    #status[data-error="true"], .badge[data-error="true"] { color: #ffb5a6 }
+    #controls { margin-top: 12px }
+    .audio-sources label { white-space: nowrap; cursor: pointer }
+    .audio-sources input:disabled + span { opacity: .5 }
+    .audio-volume { display: inline-flex; align-items: center; gap: 8px }
+    #volume { width: 112px; padding: 0; border: 0; background: transparent; accent-color: #8ce3d4 }
+    #volume-value { min-width: 4ch; font-variant-numeric: tabular-nums }
+    #stage:not(:empty) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 12px }
+    .tile { min-width: 0; overflow: hidden }
+    .tile header, .tile footer { padding: 8px 12px; justify-content: space-between }
+    .tile video { display: block; width: 100%; aspect-ratio: 16 / 9; background: #050609 }
+    .tile input { width: 83px; padding: 3px 7px }
+    [hidden] { display: none !important }
+  </style>
+  <script defer src="/static/vendor/mpegts.min.js"></script>
+  <script defer src="/static/sync-lab/calibration.js"></script>
+  <script defer src="/static/sync-lab/app.js"></script>
+</head>
+<body>
+  <main>
+    <a href="/">← 监控室</a>
+    <h1>联动同步测试</h1>
+    <section class="panel" aria-label="同步测试设置">
+      <form id="setup" class="row">
+        <label for="rooms">直播间号</label>
+        <input id="rooms" required placeholder="填 2–3 个房间号，用空格或 / 分隔" autocomplete="off" maxlength="80">
+        <button id="use-stage" type="button">使用舞台房间</button>
+        <button id="start" type="submit">开始测试</button>
+        <button id="stop" type="button" disabled>停止</button>
+      </form>
+      <div id="controls" class="row" hidden>
+        <label><input id="auto" type="checkbox" checked> 按共同声音自动校准</label>
+        <button id="reset" type="button">延迟归零</button>
+        <div class="row audio-sources" role="group" aria-labelledby="listen-title">
+          <span id="listen-title">播放声音</span>
+          <div id="listen" class="row"></div>
+        </div>
+        <div class="audio-volume">
+          <label for="volume">总音量</label>
+          <input id="volume" type="range" min="0" max="100" value="50" aria-valuetext="50%">
+          <output id="volume-value" for="volume" aria-hidden="true">50%</output>
+        </div>
+      </div>
+      <p id="status" role="status" aria-live="polite">音频在本机分析。自动校准需要各路出现相同的声音。</p>
+      <p class="hint">手动调整一路延迟会暂停自动校准。停止或关闭测试页即可结束拉流。</p>
+    </section>
+    <div id="stage" aria-label="测试画面"></div>
+  </main>
+  <template id="tile">
+    <article class="tile">
+      <header class="row"><strong class="room-name"></strong><span class="badge">拉流中</span></header>
+      <video playsinline preload="auto" disablepictureinpicture></video>
+      <footer class="row"><label>额外延迟 <input type="number" min="0" max="8" step="0.01" value="0"> 秒</label></footer>
+    </article>
+  </template>
+</body>
+</html>

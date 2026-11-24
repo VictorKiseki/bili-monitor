@@ -131,12 +131,14 @@ def main() -> int:
             updates["weekly_ai_limit"] = str(max(1, min(int(args.limit), 60)))
         if args.slots is not None:
             slots = [s.strip() for s in args.slots.split(",") if s.strip()]
+            normalized = []
             for s in slots:
                 hh, _, mm = s.partition(":")
                 if not (hh.isdigit() and mm.isdigit() and 0 <= int(hh) <= 24 and 0 <= int(mm) <= 59):
                     print(json.dumps({"ok": False, "error": "时间格式要 HH:MM"}, ensure_ascii=False))
                     return 2
-            updates["weekly_ai_slots"] = ",".join(slots)
+                normalized.append("%02d:%02d" % (int(hh) % 24, int(mm)))
+            updates.update(agentmod.slot_updates(conn, normalized))
         for k, v in updates.items():
             conn.execute("UPDATE meta SET v=? WHERE k=?", (v, k))
         conn.commit()

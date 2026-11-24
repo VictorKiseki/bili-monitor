@@ -4,6 +4,7 @@ from __future__ import annotations
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import NamedTuple
 from urllib.parse import urlencode
 
 from livedeck.deck_base import (
@@ -20,6 +21,14 @@ from livedeck.hub import protover_for_server
 # 以前零校验就交给浏览器和本地转发 —— B 站被打/被投毒时这就是一条通往内网的通道。
 # 判定与 QQ 网关共用 shared/netsafe.py（只认 B 站 CDN 域、只允许 http(s)、不许 userinfo）。
 from shared.netsafe import STREAM_SUFFIXES as STREAM_HOST_SUFFIXES, stream_url_ok
+
+
+class PlaySource(NamedTuple):
+    kind: str
+    url: str
+    accept: list[int]
+    desc: dict[int, str]
+    current: int
 
 
 class DeckBridge:
@@ -142,7 +151,11 @@ class DeckBridge:
         return self.buvid
 
     def _playinfo(self, room_id: int, qn: int) -> tuple[str, list[int], dict, int]:
-        """签名取 getRoomPlayInfo，返回 (FLV 直链, 可选 qn 列表, qn→名称, 实际 qn)。"""
+        """同步测试页使用新版接口的 HTTP-FLV 直链。"""
+        _, url, accept, desc, current = self._play_source(room_id, qn, allow_hls=False)
+        return url, accept, desc, current
+
+    def _play_source(self, room_id: int, qn: int, *, allow_hls: bool) -> PlaySource:
         params = self._client._sign({
             "room_id": room_id, "protocol": "0,1", "format": "0,1,2", "codec": "0,1",
             "qn": qn, "platform": "web", "ptype": "8", "dolby": "5", "panorama": "1",
@@ -157,32 +170,45 @@ class DeckBridge:
         data = body.get("data") or {}
         pi = ((data.get("playurl_info") or {}).get("playurl")) or {}
         desc = {int(x.get("qn")): x.get("desc") for x in (pi.get("g_qn_desc") or []) if x.get("qn")}
-        for stream in pi.get("stream") or []:
-            if stream.get("protocol_name") != "http_stream":
-                continue
-            for fmt in stream.get("format") or []:
-                if fmt.get("format_name") != "flv":
+        codecs = {
+            (stream.get("protocol_name"), fmt.get("format_name"), codec.get("codec_name")): codec
+            for stream in pi.get("stream") or []
+            for fmt in stream.get("format") or []
+            for codec in fmt.get("codec") or []
+        }
+        formats = [("flv", "http_stream", "flv", ("avc", "hevc"))]
+        if allow_hls:
+            formats.extend([
+                ("hls", "http_hls", "fmp4", ("avc", "hevc", "av1")),
+                ("hls", "http_hls", "ts", ("avc", "hevc")),
+            ])
+        for kind, protocol, fmt, names in formats:
+            for name in names:
+                c = codecs.get((protocol, fmt, name)) or {}
+                base = c.get("base_url")
+                if not base:
                     continue
-                codecs = {c.get("codec_name"): c for c in (fmt.get("codec") or [])}
-                for name in ("avc", "hevc"):
-                    c = codecs.get(name)
-                    if not c:
-                        continue
-                    base = c.get("base_url") or ""
-                    ui = (c.get("url_info") or [{}])[0]
+                for ui in c.get("url_info") or []:
                     host = ui.get("host") or ""
-                    if not (base and host):
+                    if not host:
                         continue
                     sep = "" if base.endswith("?") or base.endswith("&") else ("&" if "?" in base else "?")
                     url = host + base + sep + (ui.get("extra") or "")
-                    # S2：host/base/extra 全部来自 B 站响应，拼完必须过白名单，
-                    # 否则「B 站返回什么就转发什么」，等于给它开一条通往内网的 SSRF 通道。
+                    # 跳过不可信 CDN，仍可使用 B 站返回的其他地址。
                     if not stream_url_ok(url):
-                        raise DeckError("B 站返回的流地址不在白名单内（%s），已拒绝转发"
-                                        % (host or "空地址"), 502)
+                        continue
                     accept = [int(x) for x in (c.get("accept_qn") or []) if str(x).isdigit()]
-                    return url, accept, desc, int(c.get("current_qn") or qn)
+                    return PlaySource(kind, url, accept, desc, int(c.get("current_qn") or qn))
         raise DeckError("这个直播间暂时没有可播放的流（可能未开播）", 404)
+
+    @staticmethod
+    def _quality_info(source: PlaySource, at: float) -> dict:
+        return {
+            "current": source.current,
+            "list": [{"qn": qn, "label": source.desc.get(qn) or label}
+                     for qn, label in QUALITY_LABEL if not source.accept or qn in source.accept],
+            "at": at,
+        }
 
     def qualities(self, room_id: int) -> dict:
         """该房间可选画质。带登录 Cookie 才能拿到原画/蓝光档。"""
@@ -190,20 +216,27 @@ class DeckBridge:
         if hit and time.time() - hit.get("at", 0) < 120:
             return hit
         try:
-            _, accept, desc, current = self._playinfo(room_id, int((hit or {}).get("current") or 10000))
+            source = self._play_source(room_id, int((hit or {}).get("current") or 10000), allow_hls=True)
         except DeckError:
-            accept, desc, current = [], {qn: lbl for qn, lbl in QUALITY_LABEL}, 10000
-        out = {
-            "current": current,
-            "list": [{"qn": qn, "label": desc.get(qn) or label}
-                     for qn, label in QUALITY_LABEL if not accept or qn in accept],
-            "at": time.time(),
-        }
+            source = PlaySource("flv", "", [], {}, 10000)
+        out = self._quality_info(source, time.time())
         self._qualities[room_id] = out
         return out
 
+    def playback(self, room_id: int, qn: int, force: bool = False) -> dict:
+        """舞台优先走 HTTP-FLV 中继，仅有 HLS 时返回经校验的播放列表。"""
+        source = self._resolve_playback(room_id, qn, force, allow_hls=True)
+        result = self._quality_info(source, time.time())
+        result["kind"] = source.kind
+        if source.kind == "hls":
+            result.update(url=source.url, cdn_suffixes=STREAM_HOST_SUFFIXES)
+        return result
+
     def flv_url(self, room_id: int, qn: int = 10000, force: bool = False) -> str:
         """取该房间指定画质的 HTTP-FLV 直链（约 2 分钟过期，按 qn 缓存）。"""
+        return self._resolve_playback(room_id, qn, force, allow_hls=False).url
+
+    def _resolve_playback(self, room_id: int, qn: int, force: bool, *, allow_hls: bool) -> PlaySource:
         now = time.time()
         try:
             qn = int(qn or 10000)
@@ -222,33 +255,29 @@ class DeckBridge:
             raise DeckError("这个直播间当前未开播", 404)
         with self.lock:
             hit = self._play.get((room_id, qn))
-            if hit and not force and now - hit[0] < PLAY_TTL:
+            if hit and not force and now - hit[0] < PLAY_TTL and (allow_hls or hit[1].kind == "flv"):
                 return hit[1]
         try:
-            url, accept, desc, current = self._playinfo(room_id, qn)
+            source = self._play_source(room_id, qn, allow_hls=allow_hls)
         except DeckError:
             # 兜底：老的 playUrl 接口（只给一档，q参数被忽略）
             try:
                 r = self.http.get(PLAY_URL, params={"cid": room_id, "quality": 4, "platform": "web"})
                 data = r.json() or {}
             except Exception as e:  # noqa: BLE001
-                raise DeckError("取直播流失败：%s" % e, 502) from e
+                raise DeckError("取直播流失败：%s" % type(e).__name__, 502) from e
             if data.get("code") != 0:
                 raise DeckError("取直播流失败（%s）" % data.get("message"), 502)
-            durl = ((data.get("data") or {}).get("durl") or [])
-            if not durl or not durl[0].get("url"):
+            urls = (data.get("data") or {}).get("durl") or []
+            url = next((item["url"] for item in urls if stream_url_ok(item.get("url"))), "")
+            if not url:
                 raise DeckError("这个直播间暂时没有可播放的流（可能未开播）", 404)
-            url, accept, desc, current = str(durl[0]["url"]), [], dict(QUALITY_LABEL), qn
-        if accept:
-            self._qualities[room_id] = {
-                "current": current,
-                "list": [{"qn": q, "label": desc.get(q) or lbl}
-                         for q, lbl in QUALITY_LABEL if q in accept],
-                "at": now,
-            }
+            source = PlaySource("flv", url, [], {}, qn)
+        if source.accept:
+            self._qualities[room_id] = self._quality_info(source, now)
         with self.lock:
-            self._play[(room_id, qn)] = (now, url)
-        return url
+            self._play[(room_id, qn)] = (now, source)
+        return source
 
     def _sign_danmu_url(self, room_id: int) -> str:
         params = self._client._sign({"id": room_id, "type": 0})

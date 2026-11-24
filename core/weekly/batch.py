@@ -162,7 +162,7 @@ def subject_names(conn) -> dict:
 
 
 def build(conn, limit: int = 12, ocr_max: int = 12, download: bool = True,
-          since_days: int = 3) -> dict:
+          since_days: int = 3, *, exclude_event_ids=()) -> dict:
     """扫最近几天的动态补候选，再把一批候选组装成可直接喂模型的 items。
 
     返回 {"items", "added", "ocr", "programs", "subs"}；items 里每条都带
@@ -170,7 +170,7 @@ def build(conn, limit: int = 12, ocr_max: int = 12, download: bool = True,
     """
     since = int(time.time() - max(1, int(since_days)) * 86400)
     added = weekly.scan(conn, since=since, limit=200, download=bool(download))
-    batch = weekly.pending_batch(conn, limit=int(limit))
+    batch = weekly.pending_batch(conn, limit=int(limit), exclude_event_ids=exclude_event_ids)
     programs = load_programs(conn)
     subs = subject_names(conn)
     for item in batch:

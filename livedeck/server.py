@@ -134,8 +134,19 @@ class Handler(BaseHTTPRequestHandler):
                 if not room:
                     return self._err("缺少 room")
                 return self._json(self.deck.qualities(room))
+            if path == "/api/playback":
+                room = _int((q.get("room") or ["0"])[0], 0, 1, 10 ** 12)
+                if not room:
+                    return self._err("缺少 room")
+                qn = _int((q.get("qn") or ["10000"])[0], 10000, 1, 100000)
+                force = (q.get("force") or ["0"])[0] in ("1", "true")
+                return self._json(self.deck.playback(room, qn, force=force))
             if path == "/api/flv":
                 return self._flv(q)
+            if path == "/api/sync-lab/flv":
+                from livedeck.sync_lab import serve_stream
+
+                return serve_stream(self, q)
             if path == "/api/stream":
                 return self._stream(q)
             return self._static(path)

@@ -3,11 +3,12 @@
 (function () {
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var stageSync = null;
 
   var st = {
     snap: null, rooms: [], info: {}, active: [], listening: [], msgs: [], seen: Object.create(null), seenBase: 0,
-    q: [], qTimer: null, railSig: "",
-    filterRoom: 0, kind: "all", preset: "auto", solo: 0,
+    q: [], qTimer: null, railSig: "", railCompact: false,
+    filterRoom: 0, preset: "auto", solo: 0,
     sse: null, sseTries: 0, sseRetryAt: 0, stall: {}, tiles: {}, players: {}, login: null, streamPort: 0,
     qrTimer: null, qrKey: "", qrDeadline: 0,
     received: 0, stamps: [], sendAt: {}, sendTo: 0, autoScroll: true,
@@ -17,6 +18,10 @@
     bgKeep: false,
     emo: {}, emoTab: 0, emoRoom: 0,
     combos: [], filterCombo: 0,
+    chatSplit: false, subSource: "", chatShowTime: true,
+    mainPane: { kind: "all", clearedThrough: -1 },
+    subPane: { kind: "all", clearedThrough: -1 },
+    msgArrival: new WeakMap(),
     colors: {}, colRoom: 0,
     groupOrder: [], dragGrp: "", dropAfter: false
   };
@@ -136,6 +141,7 @@
   /* ---------------- 状态快照 ---------------- */
   function applySnapshot(snp) {
     var prevPort = st.streamPort;
+    var prevChatSources = JSON.stringify([watchIds().sort(), st.combos]);
     st.snap = snp;
     st.rooms = snp.rooms || [];
     st.info = snp.info || {};
@@ -147,8 +153,8 @@
     st.combos = snp.combos || [];
     st.colors = snp.colors || {};
     st.groupOrder = snp.group_order || [];
-    if (st.filterCombo && !comboById(st.filterCombo)) st.filterCombo = 0;
     renderHeader(); loginChip(); renderRail(); renderGrid(); renderChatFilter();
+    if (prevChatSources !== JSON.stringify([watchIds().sort(), st.combos])) rebuildFeed();
     // 服务重启后 WS 中继端口会变（stream_port），旧播放器连的是已经没人监听的端口
     if (prevPort && st.streamPort && prevPort !== st.streamPort) rebuildStreams();
     else syncStreams();
@@ -294,13 +300,21 @@
   function railRow(r) {
     var on = st.active.indexOf(r.room_id) >= 0;
     var listening = st.listening.indexOf(r.room_id) >= 0;
+    var status = liveStatusOf(r.room_id).status;
+    var name = esc(r.name || ("房间 " + r.room_id));
+    var attrs = ' class="room-row' + (on ? " on" : "") + (listening ? " listening" : "") +
+      (r.temp ? " temp" : "") + '" data-room="' + r.room_id + '"';
+    if (st.railCompact) {
+      return '<button type="button"' + attrs + ' title="' + name + '" aria-pressed="' + on + '">' +
+        avTag(r) + '<span class="rail-room-name">' + name + "</span>" + liveBadge(status) + "</button>";
+    }
+    var title = status === 1 ? esc(String(r.title || "").trim()) : "";
     // 行内只留一个三横线入口，加入/只听/分组/移除都收进二次菜单，避免一排小图标难认
     var acts = '<span class="acts"><button data-act="menu" class="more" title="更多操作" aria-label="更多操作">' +
       '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></svg></button></span>';
-    return '<div class="room-row' + (on ? " on" : "") + (listening ? " listening" : "") + (r.temp ? " temp" : "") + '" data-room="' + r.room_id + '">' +
-      avTag(r) +
-      '<div class="meta"><div class="nm">' + liveBadge(liveStatusOf(r.room_id).status) +
-      '<span>' + esc(r.name || ("房间 " + r.room_id)) + "</span></div>" +
+    return "<div" + attrs + ">" + avTag(r) +
+      '<div class="meta"><div class="nm">' + liveBadge(status) + "<span>" + name + "</span></div>" +
+      (title ? '<div class="live-title" title="' + title + '">' + title + "</div>" : "") +
       '<div class="sub">' + esc(String(r.room_id)) + (r.grp ? " · " + esc(r.grp) : "") +
       (listening ? " · 只听弹幕" : "") + "</div></div>" + acts + "</div>";
   }
@@ -396,8 +410,6 @@
   }
 
   function renderRail() {
-    // 列表重建时按钮位置会变，先把浮层收起，避免菜单悬在旧位置
-    closeRoomMenu();
     $("#rail-count").textContent = st.active.length + "/" + (st.snap ? st.snap.max_rooms : 16);
     var listenN = st.listening.length;
     var listenPill = $("#rail-listen");
@@ -408,26 +420,29 @@
     $("#rail-unhide").classList.toggle("hide", !hidden);
 
     var body = $("#rail-body");
-    var q = ($("#rail-search").value || "").trim().toLowerCase();
+    // 半收起时暂停搜索，两种宽度共用分组展开状态。
+    var q = st.railCompact ? "" : ($("#rail-search").value || "").trim().toLowerCase();
     var rows = st.rooms.filter(function (r) { return railHit(r, q); });
     // 舞台上不在监控名单里的临时房间，单独归到「临时」组（与后端 set_active 的 grp 一致）
     var temps = st.active.filter(function (id) {
       return !st.rooms.some(function (x) { return x.room_id === id; });
     }).map(function (id) {
       var inf = (st.info && st.info[String(id)]) || {};
-      return { room_id: id, name: inf.uname || ("房间 " + id), live_status: inf.live_status || 0,
-        grp: "临时", temp: true, in_db: false, face: "" };
+      return { room_id: id, name: inf.uname || ("房间 " + id),
+        title: inf.title, grp: "临时", temp: true, in_db: false, face: "" };
     }).filter(function (r) { return railHit(r, q); });
-    if (!rows.length && !temps.length) {
-      body.innerHTML = '<div class="rail-empty">没有匹配的直播间<br>可在底部直接填房间号临时加入</div>';
-      return;
-    }
     // 名单/搜索/分组状态都没变就别重建：44 个头像每 12 秒重来一次会让页面周期性一卡
-    var sig = JSON.stringify([q, st.active, st.listening, st.grpOpen, hidden, st.groupOrder,
-      rows.map(function (r) { return [r.room_id, r.name, r.grp, r.live_status, r.face, r.temp, r.in_db]; }),
-      temps.map(function (r) { return [r.room_id, r.name, r.live_status]; })]);
+    var sig = JSON.stringify([st.railCompact, q, st.active, st.listening, st.grpOpen, hidden, st.groupOrder,
+      rows.map(function (r) { return [r.room_id, r.name, r.grp, liveStatusOf(r.room_id).status, r.face, r.temp, r.in_db, r.title]; }),
+      temps.map(function (r) { return [r.room_id, r.name, liveStatusOf(r.room_id).status, r.title]; })]);
     if (sig === st.railSig) { return; }
     st.railSig = sig;
+    if (!rows.length && !temps.length) {
+      closeRoomMenu();
+      body.innerHTML = st.railCompact ? '<div class="rail-empty">暂无房间</div>' :
+        '<div class="rail-empty">没有匹配的直播间<br>可在底部直接填房间号临时加入</div>';
+      return;
+    }
     var groups = {}, order = [];
     rows.concat(temps).forEach(function (r) {
       var g = r.grp || "未分组";
@@ -435,13 +450,16 @@
       groups[g].push(r);
     });
     order = sortGroups(order);
+    var focused = document.activeElement;
+    var focusedRoom = st.railCompact && body.contains(focused) && focused.dataset.room;
     body.innerHTML = order.map(function (g) {
       var list = groups[g];
+      var label = esc(g);
       var onN = list.filter(function (r) { return st.active.indexOf(r.room_id) >= 0; }).length;
       var open = st.grpOpen[g] !== false;
-      return '<div class="grp" data-grp="' + esc(g) + '">' +
+      return '<div class="grp" data-grp="' + label + '">' +
         '<div class="grp-head" draggable="true" title="拖动可调整分组顺序"><span class="caret">' + (open ? "▾" : "▸") + '</span>' +
-        '<span class="gn">' + esc(g) + '</span><span class="gc">' + list.length + "</span>" +
+        '<span class="gn" title="' + label + '">' + label + '</span><span class="gc">' + list.length + "</span>" +
         (onN ? '<span class="go">' + onN + " 在台</span>" : "") + "</div>" +
         (open ? '<div class="grp-body">' + list.map(railRow).join("") + "</div>" : "") +
         "</div>";
@@ -471,10 +489,21 @@
         });
       });
     });
+    if (focusedRoom) {
+      var roomButton = $('.room-row[data-room="' + focusedRoom + '"]', body);
+      if (roomButton) roomButton.focus({ preventScroll: true });
+    }
+    if (roomMenu) {
+      var id = parseInt(roomMenu.dataset.room, 10);
+      var btn = $('.room-row[data-room="' + id + '"] [data-act="menu"]', body);
+      if (btn) openRoomMenu(btn, id);
+      else closeRoomMenu();
+    }
   }
 
   /* ---------------- 房间行二次操作菜单 ---------------- */
   var roomMenu = null;
+  var roomMenuScrollTop = 0;
 
   function closeRoomMenu() {
     if (roomMenu && roomMenu.parentNode) roomMenu.parentNode.removeChild(roomMenu);
@@ -482,14 +511,36 @@
   }
 
   function openRoomMenu(btn, id) {
-    closeRoomMenu();
     var r = inDbRoom(id);
     var on = st.active.indexOf(id) >= 0;
     var listening = st.listening.indexOf(id) >= 0;
+    var inDb = !!(r && r.in_db);
+    var sig = JSON.stringify([id, on, !on && listening, inDb]);
+    // 名单重建后重新定位，菜单项没变时保留按钮和焦点。
+    if (!roomMenu || roomMenu.dataset.sig !== sig) {
+      closeRoomMenu();
+      roomMenu = buildRoomMenu(id, on, listening, inDb);
+      roomMenu.dataset.room = id;
+      roomMenu.dataset.sig = sig;
+      document.body.appendChild(roomMenu);
+    }
+    var m = roomMenu;
+    // 贴着三横线按钮右下展开；下方放不下就翻到上方，左右夹在视口内
+    var box = btn.getBoundingClientRect();
+    var mw = m.offsetWidth, mh = m.offsetHeight;
+    var left = Math.min(window.innerWidth - mw - 8, Math.max(8, box.right - mw));
+    var top = box.bottom + 6;
+    if (top + mh > window.innerHeight - 8) top = Math.max(8, box.top - mh - 6);
+    m.style.left = left + "px";
+    m.style.top = top + "px";
+    roomMenuScrollTop = railBody.scrollTop;
+  }
+
+  function buildRoomMenu(id, on, listening, inDb) {
     var items = [];
     items.push({ act: "stage", label: on ? "移出舞台" : "加入舞台" });
     if (!on) items.push({ act: "listen", label: listening ? "停止只听弹幕" : "只听弹幕（不上台）" });
-    if (r && r.in_db) items.push({ act: "grp", label: "设置分组" });
+    if (inDb) items.push({ act: "grp", label: "设置分组" });
     else items.push({ act: "add", label: "加入监控台名单" });
     items.push({ act: "color", label: "设置印象色" });
     items.push({ act: "del", label: "移除直播间", danger: true });
@@ -514,16 +565,7 @@
       });
       m.appendChild(b);
     });
-    document.body.appendChild(m);
-    // 贴着三横线按钮右下展开；下方放不下就翻到上方，左右夹在视口内
-    var box = btn.getBoundingClientRect();
-    var mw = m.offsetWidth, mh = m.offsetHeight;
-    var left = Math.min(window.innerWidth - mw - 8, Math.max(8, box.right - mw));
-    var top = box.bottom + 6;
-    if (top + mh > window.innerHeight - 8) top = Math.max(8, box.top - mh - 6);
-    m.style.left = left + "px";
-    m.style.top = top + "px";
-    roomMenu = m;
+    return m;
   }
 
   document.addEventListener("mousedown", function (e) {
@@ -535,7 +577,10 @@
   window.addEventListener("resize", closeRoomMenu);
   // 只跟左栏自己的滚动，不跟弹幕流：弹幕一直在滚，不能把菜单带走
   var railBody = $("#rail-body");
-  if (railBody) railBody.addEventListener("scroll", closeRoomMenu, false);
+  if (railBody) railBody.addEventListener("scroll", function () {
+    // 列表重建可能调整滚动位置，菜单已经按调整后的位置定位。
+    if (roomMenu && railBody.scrollTop !== roomMenuScrollTop) closeRoomMenu();
+  }, false);
 
   /* ---------------- 名单操作弹窗 ---------------- */
   function inDbRoom(id) {
@@ -781,6 +826,9 @@
   }
 
   function renderGrid() {
+    // 单路房间移出舞台后，回到剩余房间或空舞台。
+    if (st.solo && st.active.indexOf(st.solo) < 0) st.solo = 0;
+    $("#solo-exit").classList.toggle("hide", !st.solo);
     var ids = st.solo ? [st.solo] : st.active;
     var grid = $("#grid");
     var empty = $("#stage-empty");
@@ -796,6 +844,7 @@
       grid.classList.add("hide");
       empty.classList.remove("hide");
       $("#stage-meta").textContent = "未选择直播间";
+      if (stageSync) stageSync.refresh();
       return;
     }
     grid.classList.remove("hide");
@@ -846,20 +895,33 @@
     $("#stage-meta").textContent = (st.solo ? "单路 · " : "") + ids.length + " 路 / " + L.cols + "×" + L.rows +
       (zN ? " · 重点观察 " + zN + " 格 " + zS + "×" + zS : "") +
       (hidden > 0 ? " · 还有 " + hidden + " 路未上屏（仍在收弹幕，切 AUTO 或更大排布查看）" : "");
-    var soloBtn = $("#solo-exit");
-    soloBtn.classList.toggle("hide", !st.solo);
+    if (stageSync) stageSync.refresh();
   }
 
-  /* ---- 直播流：本地服务端代理 FLV + mpegts.js 播放（避免 iframe 黑屏/验证码/三方 Cookie 问题） ---- */
-  function stopStream(id, video) {
-    delete st.stall[id];
-    var p = st.players[id];
-    if (p) {
-      delete st.players[id];
+  /* ---- 直播流：优先本地 WebSocket-FLV，仅有 HLS 时从 CDN 播放 ---- */
+  function destroyPlayer(stream) {
+    clearInterval(stream.readyTimer);
+    clearInterval(stream.nudgeTimer);
+    clearTimeout(stream.startTimer);
+    var p = stream.player;
+    stream.player = null;
+    if (!p) return;
+    if (stream.kind === "flv") {
       try { p.pause(); } catch (e) {}
       try { p.unload(); } catch (e) {}
       try { p.detachMediaElement(); } catch (e) {}
-      try { p.destroy(); } catch (e) {}
+    }
+    try { p.destroy(); } catch (e) {}
+  }
+
+  function stopStream(id, video) {
+    if (stageSync) stageSync.invalidate(id);
+    delete st.stall[id];
+    var stream = st.players[id];
+    if (stream) {
+      delete st.players[id];
+      clearTimeout(stream.retryTimer);
+      destroyPlayer(stream);
     }
     // 只 destroy 播放器还不够：<video> 上挂着的 MediaSource 要一起丢掉，否则 16 路会一直占着解码内存
     var v = video || (st.tiles[id] ? $("video", st.tiles[id]) : null);
@@ -868,6 +930,7 @@
       try { v.removeAttribute("src"); } catch (e) {}
       v.dataset.ldseek = "0";
       v.dataset.ldstuck = "0";
+      v.playbackRate = 1;
       try { v.load(); } catch (e) {}
     }
   }
@@ -884,6 +947,8 @@
   // 不自己跳到 buffered 末尾就会永远停在 readyState=2（缓冲一直涨、画面不动）。
   // 起播时 CDN 会一次灌一段积压（几秒），对齐到 live 边缘只做前几次，之后靠 watchdog 兜。
   function seekLive(video) {
+    if (stageSync && stageSync.owns(video)) return;
+    if (video.dataset.playbackKind !== "flv") return;
     var tries = parseInt(video.dataset.ldseek || "0", 10);
     if (tries >= 3) return;
     var b = video.buffered;
@@ -936,6 +1001,7 @@
     if (hist.length >= 4) degradeQuality(room);
   }
   function nudgeIfStuck(d, video) {
+    if (stageSync && stageSync.owns(video)) return;
     if (!video.getAttribute("src") && !video.currentSrc) return;
     if (video.paused || d.dataset.paused === "1") { video.dataset.ldstuck = "0"; return; }
     if (video.readyState >= 3) { video.dataset.ldstuck = "0"; return; }
@@ -967,13 +1033,9 @@
       seekLive(video);
       if (!video.paused && video.readyState >= 2) markPlaying(d);
     });
-    if (!video.dataset.ldstuckTimer) {
-      video.dataset.ldstuckTimer = "1";
-      video.__ldTick = setInterval(function () { nudgeIfStuck(d, video); }, 1500);
-    }
   }
 
-  function attachStream(id, d, video) {
+  function attachStream(id, d, video, force) {
     stopStream(id, video);
     var fill = $(".fill", d), small = $(".fill .small", d);
     var inf = (st.info && st.info[String(id)]) || {};
@@ -988,33 +1050,119 @@
     d.classList.add("loading");
     if (fill) fill.classList.remove("hide");
     if (small) small.textContent = "正在连接直播流…";
-    if (!(window.mpegts && mpegts.isSupported())) {
-      d.classList.remove("loading");
-      if (small) small.textContent = "这个浏览器不支持 MSE 播放，请点 ↗ 用浏览器打开";
-      return;
-    }
     if (video.dataset.paused === "1") return;
-    var failed = false;
-    function fail(msg) {
-      if (failed) return;
-      failed = true;
+    var stream = { player: null, failed: false };
+    st.players[id] = stream;
+    function current() { return st.players[id] === stream; }
+    function fail(msg, retry) {
+      if (!current() || stream.failed) return;
+      stream.failed = true;
+      if (stageSync) stageSync.invalidate(id);
+      destroyPlayer(stream);
       d.classList.remove("loading");
       if (fill) fill.classList.remove("hide");
       var n = parseInt(d.dataset.retry || "0", 10);
       var live = !inf.known || inf.live_status === 1;
-      if (live && n < 5) {
+      if (retry !== false && live && n < 5) {
         d.dataset.retry = String(n + 1);
         if (small) small.textContent = msg + "（" + (n + 1) + "/5，稍后自动重试）";
-        setTimeout(function () {
-          if (st.tiles[id] === d) attachStream(id, d, video);
+        stream.retryTimer = setTimeout(function () {
+          if (current() && st.tiles[id] === d) attachStream(id, d, video, true);
         }, 6000);
       } else {
         d.dataset.failed = "1";
         if (small) small.textContent = msg;
       }
     }
-    // 直播流走 WebSocket，避开同源 HTTP 连接数上限（16 路视频会挤死 SSE）
     var qn = window.__ldQn || st.quality[id] || savedQn(id) || defaultQn();
+    api("/api/playback?room=" + id + "&qn=" + qn + (force ? "&force=1" : "")).then(function (source) {
+      if (!current()) return;
+      if (source.list && source.list.length) {
+        st.qualities[id] = source.list;
+        fillQuality(id, $(".sel-q", d), source.current || qn);
+      }
+      stream.kind = source.kind;
+      video.dataset.playbackKind = source.kind;
+      bindVideo(d, video);
+      applyVolume(id, video);
+      if (source.kind === "hls") {
+        if (!(window.Hls && Hls.isSupported())) {
+          fail("这个浏览器不支持 HLS 播放，请点 ↗ 用浏览器打开", false);
+          return;
+        }
+        startHlsPlayer(source, stream, video, fail);
+      } else {
+        if (!(window.mpegts && mpegts.isSupported())) {
+          fail("这个浏览器不支持 MSE 播放，请点 ↗ 用浏览器打开", false);
+          return;
+        }
+        startFlvPlayer(id, qn, stream, video, fail);
+      }
+      if (stream.failed) return;
+      if (stream.kind === "flv") {
+        stream.nudgeTimer = setInterval(function () { nudgeIfStuck(d, video); }, 1500);
+      }
+      d.dataset.smoothAt = String(Date.now());
+      d.dataset.attachedAt = String(Date.now());
+      // 起播时用短轮询兜住 playing 事件，停止或超时后释放计时器。
+      stream.readyTimer = setInterval(function () {
+        if (video.readyState >= 2 && !video.paused && !video.ended) {
+          markPlaying(d);
+          clearInterval(stream.readyTimer);
+        }
+      }, 400);
+      stream.startTimer = setTimeout(function () {
+        clearInterval(stream.readyTimer);
+        if (video.readyState < 2) fail("画面还没出来 · 点 ↻ 重试，或 ↗ 用浏览器打开");
+      }, stream.kind === "hls" ? 25000 : 15000);
+    }).catch(function (err) {
+      fail(err.message + " · 点 ↻ 重试，或 ↗ 用浏览器打开");
+    });
+  }
+
+  function playVideo(video) {
+    try { var pr = video.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+  }
+
+  function startHlsPlayer(source, stream, video, fail) {
+    function checkCdn(raw) {
+      var url = new URL(raw);
+      var host = url.hostname.toLowerCase().replace(/\.$/, "");
+      var allowed = source.cdn_suffixes.some(function (suffix) {
+        return host === suffix.slice(1) || host.slice(-suffix.length) === suffix;
+      });
+      if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password || !allowed) {
+        throw new Error("HLS 请求地址不在直播 CDN 白名单内");
+      }
+    }
+    var p = new Hls({
+      backBufferLength: 30,
+      liveSyncDurationCount: st.mode === "smooth" ? 3 : 2,
+      liveMaxLatencyDurationCount: 6,
+      progressive: true,
+      xhrSetup: function (xhr, url) { checkCdn(url); },
+      fetchSetup: function (context, init) {
+        return Promise.resolve().then(function () {
+          checkCdn(context.url);
+          init.credentials = "omit";
+          init.redirect = "error";
+          return new Request(context.url, init);
+        });
+      }
+    });
+    stream.player = p;
+    p.on(Hls.Events.ERROR, function (event, data) {
+      if (data.fatal) fail("HLS 画面加载失败 · 点 ↻ 重试，或 ↗ 用浏览器打开");
+    });
+    p.on(Hls.Events.MANIFEST_PARSED, function () {
+      if (stream.player === p) playVideo(video);
+    });
+    p.loadSource(source.url);
+    p.attachMedia(video);
+  }
+
+  function startFlvPlayer(id, qn, stream, video, fail) {
+    // FLV 走 WebSocket，避开同源 HTTP 连接数上限（16 路视频会挤死 SSE）。
     var url = "/api/flv?room=" + id + "&qn=" + qn + "&_=" + Date.now();
     if (st.streamPort) {
       var wsp = location.protocol === "https:" ? "wss:" : "ws:";
@@ -1034,27 +1182,13 @@
     };
     if (window.__ldOpts) { for (var ok in window.__ldOpts) popts[ok] = window.__ldOpts[ok]; }
     var p = mpegts.createPlayer({ type: "flv", isLive: true, url: url }, popts);
-    st.players[id] = p;
+    stream.player = p;
     p.on(mpegts.Events.ERROR, function (type, detail) {
       fail("画面加载失败（" + esc(String(detail || type)) + "）· 点 ↻ 重试，或 ↗ 用浏览器打开");
     });
     p.attachMediaElement(video);
     p.load();
-    applyVolume(id, video);
-    try { var pr = video.play(); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
-    d.dataset.smoothAt = String(Date.now());
-    d.dataset.attachedAt = String(Date.now());
-    bindVideo(d, video);
-    // playing 事件可能早于监听注册（mpegts 同步起播），用短轮询兜住
-    var wd = setInterval(function () {
-      if (st.players[id] !== p) { clearInterval(wd); return; }
-      if (video.readyState >= 2 && !video.paused && !video.ended) { markPlaying(d); clearInterval(wd); }
-    }, 400);
-    setTimeout(function () { clearInterval(wd); }, 30000);
-    setTimeout(function () {
-      if (st.players[id] !== p) return;   // 已换成新播放器，旧定时器不能误判
-      if (video.readyState < 2) fail("画面还没出来 · 点 ↻ 重试，或 ↗ 用浏览器打开");
-    }, 15000);
+    if (stream.player === p) playVideo(video);
   }
 
   function applyVolume(id, video) {
@@ -1071,6 +1205,7 @@
     d.innerHTML = '<video muted autoplay playsinline preload="none"></video>' +
       '<div class="thead">' +
       '<span class="dot off"></span><span class="nm">' + esc(roomName(id)) + "</span>" +
+      '<span class="sync-badge hide">联动</span>' +
       '<span class="lb idle">…</span><span class="gd hide"></span><span class="cnt">—</span>' +
       '<span class="acts"><button title="重点观察：把这一路放大到 2×2 / 3×3" data-act="zoom">▣</button>' +
       '<button title="只看这一路" data-act="solo">⤢</button>' +
@@ -1135,7 +1270,8 @@
             video.volume = cur / 100;
           }
         } else if (act === "reload") {
-          attachStream(id, d, video);
+          d.dataset.retry = ""; d.dataset.failed = "";
+          attachStream(id, d, video, true);
         }
       });
     });
@@ -1166,15 +1302,6 @@
     });
     var tctl = $(".tctl", d);
     if (tctl) tctl.addEventListener("dblclick", function (ev) { ev.stopPropagation(); });
-    // 画质档位按房间向 B 站拉（原画需要登录态；未登录只有低档）
-    if (!st.qualities[id]) {
-      api("/api/qualities?room=" + id).then(function (j) {
-        if (!j || !j.list || !j.list.length) return;
-        st.qualities[id] = j.list;
-        // 不用 j.current：B 站会给登录账号默认「原画」，多路同看时我们不想要这么高
-        if (st.tiles[id] === d) fillQuality(id, selQ, st.quality[id] || savedQn(id) || defaultQn());
-      }).catch(function () {});
-    }
     attachStream(id, d, video);
     $("#grid").appendChild(d);
     return d;
@@ -1263,9 +1390,13 @@
     return (c.rooms || []).filter(function (r) { return watched.indexOf(r) >= 0; }).length;
   }
 
+  function mainChatSource() {
+    return st.filterCombo ? "c:" + st.filterCombo : String(st.filterRoom);
+  }
+
   function renderChatFilter() {
     var sel = $("#chat-room");
-    var cur = st.filterCombo ? "c:" + st.filterCombo : String(st.filterRoom);
+    var cur = mainChatSource();
     var watch = watchIds();
     var html = '<option value="0">合并 · 全部 ' + watch.length + " 路</option>";
     if (st.combos.length) {
@@ -1286,19 +1417,31 @@
     sel.innerHTML = html;
     sel.value = cur;
     if (sel.value !== cur) { st.filterCombo = 0; st.filterRoom = 0; sel.value = "0"; }
+    if (st.chatSplit) {
+      var sub = $("#chat-sub-room");
+      sub.innerHTML = html;
+      sub.value = st.subSource;
+      if (!sub.value) {
+        var room = watch.filter(function (r) { return String(r) !== sel.value; })[0];
+        sub.value = String(room || watch[0] || 0);
+      }
+      // 没有房间时保留原选择，等下一次收到名单再判断。
+      if (watch.length || sub.value !== "0") st.subSource = sub.value;
+    }
     var c2 = $("#send-to");
     var keep = String(st.sendTo || st.active[0] || 0);
     c2.innerHTML = st.active.map(function (r) {
       return '<option value="' + r + '">' + esc(roomName(r)) + "</option>";
     }).join("");
     if (!st.active.length) c2.innerHTML = '<option value="0">未选择直播间</option>';
+    c2.value = keep;
     st.sendTo = parseInt(c2.value || "0", 10) || st.active[0] || 0;
     c2.value = String(st.sendTo);
     renderChatHead();
   }
 
   function renderChatHead() {
-    var n = st.msgs.length;
+    var n = st.msgs.filter(function (m) { return afterClear(m, st.mainPane); }).length;
     $("#chat-count").textContent = n + " 条";
     var cb = st.filterCombo ? comboById(st.filterCombo) : null;
     $("#chat-mode-label").textContent = cb ? (cb.name + " · " + comboLive(cb) + " 路")
@@ -1372,17 +1515,26 @@
     }).catch(function (e) { toast(e.message || "删除组合失败", "err"); });
   }
 
-  function pass(m) {
-    if (!watching(m.room)) return false;   // 舞台和只听弹幕以外的房间不再显示
-    if (st.filterCombo) {
-      var cb = comboById(st.filterCombo);
-      if (!cb || (cb.rooms || []).indexOf(m.room) < 0) return false;
-    } else if (st.filterRoom && m.room !== st.filterRoom) return false;
-    if (st.kind !== "all") {
-      if (st.kind === "danmaku" && m.kind !== "danmaku" && m.kind !== "sys") return false;
-      if (st.kind === "gift" && m.kind !== "gift" && m.kind !== "guard") return false;
-      if (st.kind === "sc" && m.kind !== "sc") return false;
-    }
+  function afterClear(m, pane) {
+    // 初始历史视为第 0 批。清屏后即使历史请求稍晚完成，也不会把它补回这一栏。
+    return (st.msgArrival.get(m) || 0) > pane.clearedThrough;
+  }
+
+  function feedFilter(source, pane) {
+    var combo = source.indexOf("c:") === 0 ? comboById(parseInt(source.slice(2), 10)) : null;
+    var rooms = combo ? combo.rooms : null;
+    var room = Number(source) || 0;
+    return function (m) {
+      if (!afterClear(m, pane) || !watching(m.room)) return false;
+      if (rooms ? rooms.indexOf(m.room) < 0 : room && m.room !== room) return false;
+      return passKind(m, pane.kind);
+    };
+  }
+
+  function passKind(m, kind) {
+    if (kind === "danmaku") return m.kind === "danmaku" || m.kind === "sys";
+    if (kind === "gift") return m.kind === "gift" || m.kind === "guard";
+    if (kind === "sc") return m.kind === "sc";
     return true;
   }
 
@@ -1591,44 +1743,142 @@
   }
 
   function flushFeed() {
+    if (st.qTimer) clearTimeout(st.qTimer);
     st.qTimer = null;
     var batch = st.q.splice(0, st.q.length);
     if (!batch.length) return;
-    var feed = $("#feed");
-    if (feed) {
-      var empty = $("#feed-empty");
-      if (empty) empty.remove();
-      var near = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 160 || !feed.scrollTop;
-      batch.forEach(function (m) { if (m.self) near = true; });
-      var shown = batch.filter(pass);
-      if (shown.length) {
-        var frag = document.createDocumentFragment();
-        shown.forEach(function (m) {
-          var w = document.createElement("div");
-          w.innerHTML = msgNode(m);
-          frag.appendChild(w.firstChild);
-        });
-        feed.appendChild(frag);
-        while (feed.children.length > 320) feed.removeChild(feed.firstChild);
-        if (near) feed.scrollTop = feed.scrollHeight;
-      }
-    }
+    appendFeed($("#feed"), batch, mainChatSource(), st.mainPane);
+    if (st.chatSplit) appendFeed($("#feed-sub"), batch, st.subSource, st.subPane);
     renderChatHead();
     paintRate();
     $("#m-total").textContent = st.received;
   }
 
+  function appendFeed(feed, batch, source, pane) {
+    var shown = batch.filter(feedFilter(source, pane));
+    if (!shown.length) return;
+    var empty = $(".chat-empty", feed);
+    if (empty) empty.remove();
+    var near = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 160 || !feed.scrollTop;
+    feed.insertAdjacentHTML("beforeend", shown.map(msgNode).join(""));
+    while (feed.children.length > 320) feed.removeChild(feed.firstChild);
+    if (near || shown.some(function (m) { return m.self; })) feed.scrollTop = feed.scrollHeight;
+  }
+
+  function rebuildFeedPane(feed, source, pane) {
+    var list = st.msgs.filter(feedFilter(source, pane));
+    feed.innerHTML = list.length ? list.slice(-260).map(msgNode).join("")
+      : '<div class="chat-empty">等待弹幕…<br>所选来源的消息会在这里实时显示</div>';
+    if (list.length) feed.scrollTop = feed.scrollHeight;
+  }
+
   function rebuildFeed() {
-    var feed = $("#feed");
-    feed.innerHTML = "";
-    var list = st.msgs.filter(pass);
-    if (!list.length) {
-      feed.innerHTML = '<div class="chat-empty" id="feed-empty">等待弹幕…<br>连上直播间后，这里的消息会实时滚动</div>';
-      return;
+    // 先消化待绘制的消息，避免同一条消息回填后又从队列追加。
+    flushFeed();
+    rebuildFeedPane($("#feed"), mainChatSource(), st.mainPane);
+    if (st.chatSplit) rebuildFeedPane($("#feed-sub"), st.subSource, st.subPane);
+  }
+
+  function bindChatPane(feed, pane, source, kinds, clear) {
+    var buttons = $$("button[data-kind]", kinds);
+    buttons.forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (pane.kind === b.dataset.kind) return;
+        flushFeed();
+        pane.kind = b.dataset.kind;
+        buttons.forEach(function (x) {
+          x.classList.toggle("on", x === b);
+          x.setAttribute("aria-pressed", String(x === b));
+        });
+        rebuildFeedPane(feed, source(), pane);
+      });
+    });
+    clear.addEventListener("click", function () {
+      pane.clearedThrough = st.received;
+      rebuildFeedPane(feed, source(), pane);
+      if (pane === st.mainPane) renderChatHead();
+    });
+  }
+
+  function renderChatDisplay() {
+    $("#chat-feeds").classList.toggle("hide-time", !st.chatShowTime);
+    $("#chat-feeds").classList.toggle("split", st.chatSplit);
+    $("#chat-divider").classList.toggle("hide", !st.chatSplit);
+    $("#chat-sub").classList.toggle("hide", !st.chatSplit);
+    var time = $("#chat-time-toggle");
+    time.classList.toggle("on", st.chatShowTime);
+    time.setAttribute("aria-pressed", String(st.chatShowTime));
+    time.title = st.chatShowTime ? "隐藏弹幕时间" : "显示弹幕时间";
+    var split = $("#chat-split-toggle");
+    split.classList.toggle("on", st.chatSplit);
+    split.setAttribute("aria-pressed", String(st.chatSplit));
+    split.title = st.chatSplit ? "关闭弹幕子栏" : "开启弹幕子栏";
+  }
+
+  function bindChatResize() {
+    var box = $("#chat-feeds");
+    var divider = $("#chat-divider");
+    var feeds = [$("#feed"), $("#feed-sub")];
+    var min = Number(divider.getAttribute("aria-valuemin"));
+    var max = Number(divider.getAttribute("aria-valuemax"));
+    var share = Number(divider.getAttribute("aria-valuenow"));
+    var drag = null;
+
+    function setShare(value) {
+      var following = feeds.filter(function (feed) {
+        return feed.scrollHeight - feed.scrollTop - feed.clientHeight <= 2;
+      });
+      share = Math.max(min, Math.min(max, Math.round(value)));
+      box.style.setProperty("--chat-sub-share", String(share / 100));
+      divider.setAttribute("aria-valuenow", String(share));
+      divider.setAttribute("aria-valuetext", "子栏占 " + share + "%");
+      following.forEach(function (feed) {
+        feed.scrollTo({ top: feed.scrollHeight, behavior: "instant" });
+      });
     }
-    var html = list.slice(-260).map(msgNode).join("");
-    feed.innerHTML = html;
-    feed.scrollTop = feed.scrollHeight;
+
+    function saveShare() {
+      try { localStorage.setItem("ld.chat-sub-share", String(share)); } catch (e) {}
+    }
+
+    var saved = share;
+    try { saved = Number(localStorage.getItem("ld.chat-sub-share")) || share; } catch (e) {}
+    setShare(saved);
+
+    divider.addEventListener("pointerdown", function (ev) {
+      if (!ev.isPrimary || ev.button !== 0 || drag) return;
+      ev.preventDefault();
+      divider.focus();
+      drag = { id: ev.pointerId, offset: ev.clientY - divider.getBoundingClientRect().top };
+      divider.setPointerCapture(ev.pointerId);
+      divider.classList.add("dragging");
+    });
+    divider.addEventListener("pointermove", function (ev) {
+      if (!drag || ev.pointerId !== drag.id || !st.chatSplit) return;
+      var bounds = box.getBoundingClientRect();
+      var available = bounds.height - divider.offsetHeight;
+      if (available <= 0) return;
+      var mainHeight = ev.clientY - drag.offset - bounds.top;
+      setShare(100 * (1 - mainHeight / available));
+    });
+    // 释放或取消指针时都会失去捕获，拖出分隔线也能保存最后的比例。
+    divider.addEventListener("lostpointercapture", function (ev) {
+      if (!drag || ev.pointerId !== drag.id) return;
+      drag = null;
+      divider.classList.remove("dragging");
+      saveShare();
+    });
+    divider.addEventListener("keydown", function (ev) {
+      var next;
+      if (ev.key === "ArrowUp") next = share + 5;
+      else if (ev.key === "ArrowDown") next = share - 5;
+      else if (ev.key === "Home") next = min;
+      else if (ev.key === "End") next = max;
+      else return;
+      ev.preventDefault();
+      setShare(next);
+      saveShare();
+    });
   }
 
   function onMessage(m) {
@@ -1643,6 +1893,7 @@
       st.seenBase = base;
     }
     st.received++;
+    st.msgArrival.set(m, st.received);
     st.stamps.push(Date.now() / 1000);
     st.msgs.push(m);
     if (st.msgs.length > 600) st.msgs.splice(0, 200);
@@ -1744,7 +1995,7 @@
       var rr = st.rooms.filter(function (x) { return x.room_id === j.room; })[0];
       if (rr) {
         rr.live_status = j.info.live_status; rr.title = j.info.title; rr.online = j.info.online;
-        renderRailSoon();   // 左栏 LIVE 徽标要跟着自己的轮询结果变（采集没在跑时尤其需要）
+        renderRailSoon();   // 左栏标题和直播状态跟随房间信息刷新
       }
       var t2 = st.tiles[j.room];
       if (t2) updateTileHead(t2, j.room);
@@ -2204,6 +2455,16 @@
         pollMem();
       }
     });
+    $("#rail-toggle").addEventListener("click", function () {
+      st.railCompact = !st.railCompact;
+      closeRoomMenu();
+      $("#app").classList.toggle("rail-compact", st.railCompact);
+      var label = st.railCompact ? "展开房间列表" : "收起房间列表";
+      this.title = label;
+      this.setAttribute("aria-label", label);
+      this.setAttribute("aria-expanded", String(!st.railCompact));
+      renderRail();
+    });
     $("#rail-search").addEventListener("input", function () { renderRail(); });
     $("#rail-unhide").addEventListener("click", function () {
       api("/api/room/unhide", {}).then(function () { toast("已恢复隐藏的直播间"); return refresh(); })
@@ -2287,12 +2548,44 @@
         st.filterCombo = 0;
         st.filterRoom = parseInt(v, 10) || 0;
       }
-      rebuildFeed(); renderChatHead();
+      flushFeed();
+      rebuildFeedPane($("#feed"), mainChatSource(), st.mainPane);
+      renderChatHead();
       // 只听弹幕的房间不接受发送，发送目标仍限定在舞台上
       if (st.filterRoom && st.active.indexOf(st.filterRoom) >= 0) {
         st.sendTo = st.filterRoom;
         $("#send-to").value = String(st.filterRoom);
       }
+    });
+    try {
+      st.chatShowTime = localStorage.getItem("ld.chat-time") !== "0";
+      st.chatSplit = localStorage.getItem("ld.chat-split") === "1";
+      st.subSource = localStorage.getItem("ld.chat-sub-source") || "";
+    } catch (e) {}
+    renderChatDisplay();
+    bindChatResize();
+    $("#chat-time-toggle").addEventListener("click", function () {
+      st.chatShowTime = !st.chatShowTime;
+      renderChatDisplay();
+      try { localStorage.setItem("ld.chat-time", st.chatShowTime ? "1" : "0"); } catch (e) {}
+    });
+    $("#chat-split-toggle").addEventListener("click", function () {
+      flushFeed();
+      st.chatSplit = !st.chatSplit;
+      renderChatDisplay();
+      if (st.chatSplit) {
+        renderChatFilter();
+        rebuildFeedPane($("#feed-sub"), st.subSource, st.subPane);
+      } else {
+        $("#feed-sub").textContent = "";
+      }
+      try { localStorage.setItem("ld.chat-split", st.chatSplit ? "1" : "0"); } catch (e) {}
+    });
+    $("#chat-sub-room").addEventListener("change", function () {
+      flushFeed();
+      st.subSource = this.value;
+      rebuildFeedPane($("#feed-sub"), st.subSource, st.subPane);
+      try { localStorage.setItem("ld.chat-sub-source", st.subSource); } catch (e) {}
     });
     $("#combo-open").addEventListener("click", function (ev) {
       ev.stopPropagation();
@@ -2310,7 +2603,9 @@
         var c = comboById(id);
         st.filterCombo = id; st.filterRoom = 0;
         $("#chat-room").value = "c:" + id;
-        rebuildFeed(); renderChatHead(); closeCombo();
+        flushFeed();
+        rebuildFeedPane($("#feed"), mainChatSource(), st.mainPane);
+        renderChatHead(); closeCombo();
         if (c) toast("已切到组合「" + c.name + "」· " + comboLive(c) + " 路");
       } else if (act === "del") {
         deleteCombo(id);
@@ -2322,16 +2617,9 @@
       if (p.contains(ev.target) || $("#combo-open").contains(ev.target)) return;
       closeCombo();
     });
-    $$(".chat-filter .seg button").forEach(function (b) {
-      b.addEventListener("click", function () {
-        st.kind = b.dataset.kind;
-        $$(".chat-filter .seg button").forEach(function (x) { x.classList.toggle("on", x === b); });
-        rebuildFeed();
-      });
-    });
-    $("#chat-clear").addEventListener("click", function () {
-      st.msgs = []; rebuildFeed(); renderChatHead();
-    });
+    bindChatPane($("#feed"), st.mainPane, mainChatSource, $("#chat-main-kinds"), $("#chat-clear"));
+    bindChatPane($("#feed-sub"), st.subPane, function () { return st.subSource; },
+      $("#chat-sub-kinds"), $("#chat-sub-clear"));
     $("#send-to").addEventListener("change", function () {
       st.sendTo = parseInt(this.value, 10) || 0;
       closeEmo();
@@ -2421,11 +2709,12 @@
     var now = Date.now();
     Object.keys(st.tiles).forEach(function (k) {
       var id = parseInt(k, 10), t = st.tiles[k], v = $("video", t);
-      if (!v || !st.players[id] || t.dataset.offline === "1" || t.dataset.hidden === "1") {
+      var stream = st.players[id];
+      if (!v || !stream || !stream.player || t.dataset.offline === "1" || t.dataset.hidden === "1") {
         delete st.stall[id]; return;
       }
       // 流畅优先模式不裁 SourceBuffer，靠每 20 分钟软重连回收内存
-      if (st.mode === "smooth" && t.dataset.smoothAt && now - parseInt(t.dataset.smoothAt, 10) > 1200000 && !v.paused) {
+      if (stream.kind === "flv" && st.mode === "smooth" && t.dataset.smoothAt && now - parseInt(t.dataset.smoothAt, 10) > 1200000 && !v.paused) {
         t.dataset.smoothAt = String(now);
         attachStream(id, t, v);
         return;
@@ -2462,7 +2751,10 @@
       if (j.listening) st.listening = j.listening.filter(function (r) { return st.active.indexOf(r) < 0; });
       st.streamPort = j.stream_port || 0;
       renderRail();
-      if (listenBefore !== st.listening.join(",")) renderChatFilter();                     // 内部有签名比对，内容没变不会重排
+      if (listenBefore !== st.listening.join(",")) {
+        renderChatFilter();
+        rebuildFeed();
+      }
       loginChip(); renderHeader();
       var br = j.bridge.rooms || {};
       Object.keys(br).forEach(function (k) {
@@ -2475,7 +2767,31 @@
   }
 
   /* ---------------- 启动 ---------------- */
+  function stageSyncRoom(id) {
+    var tile = st.tiles[id];
+    return tile ? { id: id, name: roomName(id), tile: tile, video: $("video", tile), stream: st.players[id] } : null;
+  }
+
+  function restoreStagePlayback(video, stream) {
+    if ((document.hidden && !st.bgKeep) || video.dataset.paused === "1" || !stream.player || video.ended) return;
+    var calibration = window.LiveDeckCalibration;
+    var target = stream.kind === "hls" ? stream.player.liveSyncPosition : calibration.livePosition(video, latTarget());
+    if (Number.isFinite(target) && Math.abs(target - video.currentTime) > .25 && calibration.contains(video, target)) {
+      video.currentTime = target;
+    }
+    if (video.paused) playVideo(video);
+  }
+
   function boot() {
+    if (window.createLiveDeckStageSync && window.LiveDeckCalibration) {
+      stageSync = window.createLiveDeckStageSync({
+        room: stageSyncRoom,
+        rooms: function () { return st.active.map(stageSyncRoom).filter(Boolean); },
+        isOnStage: function (id) { return st.active.indexOf(id) >= 0; },
+        buffer: latTarget, play: playVideo, restore: restoreStagePlayback, notify: toast
+      });
+      $("#stage-sync-btn").disabled = false;
+    }
     bind();
     loadProxyTag();
     refresh().then(function () {

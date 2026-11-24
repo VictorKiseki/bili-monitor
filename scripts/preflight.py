@@ -230,6 +230,25 @@ def check_dependencies(report: Report) -> None:
 
 
 def check_configs(report: Report, root: Path) -> None:
+    agent_config = root / "config" / "weekly_agent.json"
+    if agent_config.is_file():
+        try:
+            from core.weekly import agent_api
+
+            config = agent_api.load_config(agent_config)
+        except ImportError:
+            report.add("config.weekly_agent", WARN, "自定义日程识别 Agent", "安装依赖后可校验配置")
+        except ValueError as exc:
+            report.add("config.weekly_agent", WARN, "自定义日程识别 Agent", str(exc),
+                       "在日程表的「日程识别」中重新保存设置")
+        else:
+            mode = {"http": "自定义 Agent API", "harness": "Harness 文件交接",
+                    "deepseek": "DeepSeek 直连"}[config["mode"]]
+            if config["mode"] == "deepseek" and not config["deepseek_key"]:
+                report.add("config.weekly_agent", WARN, "日程识别 Agent", "请填写 DeepSeek API Key")
+            else:
+                report.add("config.weekly_agent", OK, "日程识别 Agent", mode)
+
     # --- QQ 官方机器人凭据
     bbot = root / "BBOT.env"
     if not bbot.is_file():

@@ -158,7 +158,7 @@ def candidate_score(text: str, images: list[dict]) -> int:
             s += 1
     return s
 
-def pending_batch(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
+def pending_batch(conn: sqlite3.Connection, limit: int = 100, *, exclude_event_ids=()) -> list[dict]:
     """待判定队列。人工标过「周表/单场」的排最前，再按可疑度。
 
     2026-11-05 起带上动态标题（event.title）：开播时间/周次常只写在标题里
@@ -172,6 +172,8 @@ def pending_batch(conn: sqlite3.Connection, limit: int = 100) -> list[dict]:
         " WHERE c.status='pending'").fetchall()
     out = []
     for r in rows:
+        if r["event_id"] in exclude_event_ids:
+            continue
         images = json.loads(r["images_json"] or "[]")
         title = str(r["title"] or "")
         text = r["text"] or ""
@@ -519,7 +521,8 @@ def _store_single(conn, cand, res: dict, event_id: str, conf: float, hard: bool,
                              "dates": [s["date"] for s in sessions], "confidence": conf})
 
 
-def ingest(conn: sqlite3.Connection, results: list[dict], dry_run: bool = False) -> dict:
+def ingest(conn: sqlite3.Connection, results: list[dict], dry_run: bool = False, *,
+           keep_pending_on_error: bool = False) -> dict:
     """收卷：week 写 weekly_schedule，single 写 weekly_session，none 只标候选。
 
     · week   —— 一周多天多场，整周覆盖（UPSERT），顺带记 diff；
@@ -565,7 +568,9 @@ def ingest(conn: sqlite3.Connection, results: list[dict], dry_run: bool = False)
                           recheck_bad, now, dry_run, summary)
         except Exception as e:                          # noqa: BLE001
             summary["error"] += 1
-            if not dry_run:
+            if not dry_run and keep_pending_on_error:
+                conn.rollback()
+            elif not dry_run:
                 conn.execute("UPDATE weekly_candidate SET status='error', note=?, decided_at=?"
                              " WHERE event_id=?", (str(e)[:300], now, event_id))
                 conn.commit()

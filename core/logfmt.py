@@ -20,7 +20,8 @@ _TS_FULL = re.compile(r"^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})\s+(.*)$")
 _TS_TIME = re.compile(r"^(\d{2}:\d{2}:\d{2})\s+(.*)$")
 _TAG = re.compile(r"^\[([^\]]{1,12})\]\s*(.*)$")
 # 「错误 0 / 失败 0」是统计里的零值，不是错误；先剔掉再判级别
-_ZERO_COUNT = re.compile(r"(?:错误|失败|异常|error|errors)\s*[:：=]?\s*0(?!\d)", re.I)
+_ZERO_COUNT = re.compile(
+    r"(?:错误|失败|异常|error|errors|重试/死信)\s*[:：=]?\s*0(?!\d)", re.I)
 
 # 按日日志的三个家族：bot 是 2026-11-11 拆分前的单进程主循环，collector / pusher 是拆分后的两个进程
 LOG_FAMILIES = {"bot": "主循环", "collector": "采集", "pusher": "推送"}
